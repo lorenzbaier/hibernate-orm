@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tuple.internal;
@@ -50,8 +50,6 @@ import org.hibernate.sql.results.graph.DomainResult;
 import org.hibernate.sql.results.graph.DomainResultCreationState;
 import org.hibernate.type.BasicType;
 import org.hibernate.type.descriptor.java.JavaType;
-
-import jakarta.persistence.metamodel.Attribute;
 
 /**
  * The table group producer for an anonymous tuple type.
@@ -152,22 +150,23 @@ public class AnonymousTupleTableGroupProducer implements TableGroupProducer, Map
 			ModelPart existingModelPart,
 			Set<String> compatibleTableExpressions,
 			int fetchableIndex) {
-		if ( domainType instanceof EntityDomainType<?> ) {
+		if ( domainType instanceof EntityDomainType<?> entityDomainType ) {
 			final EntityValuedModelPart existingModelPartContainer = (EntityValuedModelPart) existingModelPart;
-			final EntityIdentifierMapping identifierMapping = existingModelPartContainer.getEntityMappingType()
-					.getIdentifierMapping();
+			final EntityIdentifierMapping identifierMapping =
+					existingModelPartContainer.getEntityMappingType().getIdentifierMapping();
 			final EntityIdentifierMapping newIdentifierMapping;
 			if ( identifierMapping instanceof SingleAttributeIdentifierMapping ) {
 				if ( identifierMapping.getPartMappingType() instanceof ManagedMappingType ) {
-					//noinspection unchecked
-					final Set<Attribute<?, ?>> attributes = (Set<Attribute<?, ?>>) ( (ManagedDomainType<?>) ( (EntityDomainType<?>) domainType ).getIdentifierDescriptor().getSqmPathType() ).getAttributes();
+					final ManagedDomainType<?> sqmPathType =
+							(ManagedDomainType<?>)
+									entityDomainType.getIdentifierDescriptor().getPathType();
 					newIdentifierMapping = new AnonymousTupleEmbeddedEntityIdentifierMapping(
 							sqmExpressible,
 							sqlTypedMappings,
 							selectionIndex,
 							selectionExpression + "_" + identifierMapping.getAttributeName(),
 							compatibleTableExpressions,
-							attributes,
+							sqmPathType.getAttributes(),
 							domainType,
 							(CompositeIdentifierMapping) identifierMapping
 					);
@@ -192,23 +191,24 @@ public class AnonymousTupleTableGroupProducer implements TableGroupProducer, Map
 				}
 			}
 			else {
-				//noinspection unchecked
-				final Set<Attribute<?, ?>> attributes = (Set<Attribute<?, ?>>) ( (ManagedDomainType<?>) ( (EntityDomainType<?>) domainType ).getIdentifierDescriptor().getSqmPathType() ).getAttributes();
+				final ManagedDomainType<?> sqmPathType =
+						(ManagedDomainType<?>)
+								entityDomainType.getIdentifierDescriptor().getPathType();
 				newIdentifierMapping = new AnonymousTupleNonAggregatedEntityIdentifierMapping(
 						sqmExpressible,
 						sqlTypedMappings,
 						selectionIndex,
 						selectionExpression,
 						compatibleTableExpressions,
-						attributes,
+						sqmPathType.getAttributes(),
 						domainType,
 						selectionExpression,
 						(NonAggregatedIdentifierMapping) identifierMapping
 				);
 			}
-			if ( existingModelPartContainer instanceof ToOneAttributeMapping ) {
+			if ( existingModelPart instanceof ToOneAttributeMapping toOneAttributeMapping ) {
 				// We take "ownership" of FK columns by reporting the derived table group is compatible
-				compatibleTableExpressions.add( ( (ToOneAttributeMapping) existingModelPart ).getIdentifyingColumnsTableExpression() );
+				compatibleTableExpressions.add( toOneAttributeMapping.getIdentifyingColumnsTableExpression() );
 			}
 			return new AnonymousTupleEntityValuedModelPart(
 					newIdentifierMapping,
@@ -217,16 +217,14 @@ public class AnonymousTupleTableGroupProducer implements TableGroupProducer, Map
 					fetchableIndex
 			);
 		}
-		else if ( domainType instanceof ManagedDomainType<?> ) {
-			//noinspection unchecked
-			final Set<Attribute<?, ?>> attributes = (Set<Attribute<?, ?>>) ( (ManagedDomainType<?>) domainType ).getAttributes();
+		else if ( domainType instanceof ManagedDomainType<?> managedDomainType ) {
 			return new AnonymousTupleEmbeddableValuedModelPart(
 					sqmExpressible,
 					sqlTypedMappings,
 					selectionIndex,
 					selectionExpression,
 					compatibleTableExpressions,
-					attributes,
+					managedDomainType.getAttributes(),
 					domainType,
 					selectionExpression,
 					(EmbeddableValuedModelPart) existingModelPart,

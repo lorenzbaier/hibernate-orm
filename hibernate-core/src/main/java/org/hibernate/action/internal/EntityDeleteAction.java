@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.action.internal;
@@ -60,16 +60,6 @@ public class EntityDeleteAction extends EntityAction {
 		this.version = version;
 		this.isCascadeDeleteEnabled = isCascadeDeleteEnabled;
 		this.state = state;
-
-		final NaturalIdMapping naturalIdMapping = persister.getNaturalIdMapping();
-		if ( naturalIdMapping != null ) {
-			naturalIdValues = session.getPersistenceContextInternal().getNaturalIdResolutions()
-					.removeLocalResolution(
-							getId(),
-							naturalIdMapping.extractNaturalIdFromEntityState( state ),
-							getPersister()
-					);
-		}
 	}
 
 	/**
@@ -124,6 +114,16 @@ public class EntityDeleteAction extends EntityAction {
 		final Object instance = getInstance();
 
 		final boolean veto = isInstanceLoaded() && preDelete();
+
+		final NaturalIdMapping naturalIdMapping = persister.getNaturalIdMapping();
+		if ( naturalIdMapping != null ) {
+			naturalIdValues = session.getPersistenceContextInternal().getNaturalIdResolutions()
+					.removeLocalResolution(
+							getId(),
+							naturalIdMapping.extractNaturalIdFromEntityState( state ),
+							getPersister()
+					);
+		}
 
 		final Object ck = lockCacheItem();
 

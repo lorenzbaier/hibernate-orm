@@ -1,22 +1,27 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot.model.internal;
 
-import java.lang.annotation.Annotation;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapKeyClass;
+import jakarta.persistence.MapKeyEnumerated;
+import jakarta.persistence.MapKeyTemporal;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Temporal;
+import jakarta.persistence.TemporalType;
+import jakarta.persistence.Version;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.MappingException;
@@ -55,17 +60,12 @@ import org.hibernate.type.spi.TypeConfiguration;
 import org.hibernate.usertype.DynamicParameterizedType;
 import org.hibernate.usertype.UserType;
 
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
-import jakarta.persistence.MapKeyClass;
-import jakarta.persistence.MapKeyEnumerated;
-import jakarta.persistence.MapKeyTemporal;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
-import jakarta.persistence.Version;
+import java.lang.annotation.Annotation;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hibernate.boot.model.internal.AnnotationHelper.extractParameterMap;
@@ -119,7 +119,7 @@ public class BasicValueBinder implements JdbcTypeIndicators {
 	private MemberDetails memberDetails;
 	private AccessType accessType;
 
-	private ConverterDescriptor converterDescriptor;
+	private ConverterDescriptor<?,?> converterDescriptor;
 
 	private boolean isNationalized;
 	private boolean isLob;
@@ -152,7 +152,7 @@ public class BasicValueBinder implements JdbcTypeIndicators {
 	}
 
 	protected SourceModelBuildingContext getSourceModelContext() {
-		return getMetadataCollector().getSourceModelBuildingContext();
+		return buildingContext.getBootstrapContext().getModelsContext();
 	}
 
 	private InFlightMetadataCollector getMetadataCollector() {
@@ -302,7 +302,7 @@ public class BasicValueBinder implements JdbcTypeIndicators {
 			MemberDetails value,
 			TypeDetails typeDetails,
 			String declaringClassName,
-			ConverterDescriptor converterDescriptor) {
+			@Nullable ConverterDescriptor converterDescriptor) {
 		this.memberDetails = value;
 		final boolean isArray = value.isArray();
 		if ( typeDetails == null && !isArray ) {
@@ -1158,7 +1158,7 @@ public class BasicValueBinder implements JdbcTypeIndicators {
 		return getMetadataCollector().getDatabase().getDialect();
 	}
 
-	private void applyJpaConverter(MemberDetails attribute, ConverterDescriptor attributeConverterDescriptor) {
+	private void applyJpaConverter(MemberDetails attribute, ConverterDescriptor<?,?> attributeConverterDescriptor) {
 		final boolean autoApply = attributeConverterDescriptor.getAutoApplyDescriptor().isAutoApplicable();
 		disallowConverter( attribute, Id.class, autoApply );
 		disallowConverter( attribute, Version.class, autoApply );
@@ -1188,10 +1188,6 @@ public class BasicValueBinder implements JdbcTypeIndicators {
 	}
 
 	void disallowConverter(MemberDetails attribute, Class<? extends Annotation> annotationType, boolean autoApply) {
-		// NOTE: A really faithful reading of the JPA spec is that we should
-		//       just silently ignore any auto-apply converter which matches
-		//       one of the disallowed attribute types, but for now let's be
-		//       a bit more fussy/helpful, and see how many people complain.
 		if ( attribute.hasDirectAnnotationUsage( annotationType ) ) {
 			throw new AnnotationException( "'AttributeConverter' not allowed for attribute '" + attribute.getName()
 											+ "' annotated '@" + annotationType.getName() + "'"

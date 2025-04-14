@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.update;
@@ -10,10 +10,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.hibernate.HibernateException;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.query.ImmutableEntityUpdateQueryHandlingMode;
 import org.hibernate.query.SemanticException;
 import org.hibernate.query.criteria.JpaCriteriaUpdate;
 import org.hibernate.query.criteria.JpaRoot;
@@ -133,17 +133,20 @@ public class SqmUpdateStatement<T>
 		final EntityPersister persister =
 				nodeBuilder().getMappingMetamodel().getEntityDescriptor( getTarget().getEntityName() );
 		if ( !persister.isMutable() ) {
-			final ImmutableEntityUpdateQueryHandlingMode mode =
-					nodeBuilder().getImmutableEntityUpdateQueryHandlingMode();
 			final String querySpaces = Arrays.toString( persister.getQuerySpaces() );
-			switch ( mode ) {
+			switch ( nodeBuilder().getImmutableEntityUpdateQueryHandlingMode() ) {
+				case ALLOW :
+					LOG.immutableEntityUpdateQueryAllowed( hql, querySpaces );
+					break;
 				case WARNING:
 					LOG.immutableEntityUpdateQuery( hql, querySpaces );
 					break;
 				case EXCEPTION:
-					throw new HibernateException( "The query attempts to update an immutable entity: " + querySpaces );
-				default:
-					throw new UnsupportedOperationException( "The " + mode + " is not supported" );
+					throw new HibernateException( "The query attempts to update an immutable entity: "
+												+ querySpaces
+												+ " (set '"
+												+ AvailableSettings.IMMUTABLE_ENTITY_UPDATE_QUERY_HANDLING_MODE
+												+ "' to suppress)");
 			}
 		}
 	}

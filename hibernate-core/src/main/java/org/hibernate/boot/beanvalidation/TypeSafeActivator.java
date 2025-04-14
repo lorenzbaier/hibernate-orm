@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot.beanvalidation;
@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 
+import jakarta.validation.NoProviderFoundException;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -34,6 +35,7 @@ import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.config.spi.ConfigurationService;
 import org.hibernate.engine.config.spi.StandardConverters;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.CoreMessageLogger;
@@ -97,14 +99,24 @@ class TypeSafeActivator {
 		catch (IntegrationException e) {
 			final Set<ValidationMode> validationModes = context.getValidationModes();
 			if ( validationModes.contains( ValidationMode.CALLBACK ) ) {
-				throw new IntegrationException( "Bean Validation provider was not available, but 'callback' validation was requested", e );
+				throw new IntegrationException( "Jakarta Validation provider was not available, but 'callback' validation mode was requested", e );
 			}
 			else if ( validationModes.contains( ValidationMode.DDL ) ) {
-				throw new IntegrationException( "Bean Validation provider was not available, but 'ddl' validation was requested", e );
+				throw new IntegrationException( "Jakarta Validation provider was not available, but 'ddl' validation mode was requested", e );
 			}
 			else {
-				LOG.debug( "Unable to acquire Bean Validation ValidatorFactory, skipping activation" );
-				return;
+				if ( e.getCause() != null && e.getCause() instanceof NoProviderFoundException ) {
+					// all good, we are looking at the ValidationMode.AUTO, and there are no providers available.
+					// Hence, we just don't enable the Jakarta Validation integration:
+					LOG.debug( "Unable to acquire Jakarta Validation ValidatorFactory, skipping activation" );
+					return;
+				}
+				else {
+					// There is a Jakarta Validation provider, but it failed to bootstrap the factory for some reason,
+					// we should fail and let the user deal with it:
+					throw e;
+
+				}
 			}
 		}
 
@@ -115,7 +127,7 @@ class TypeSafeActivator {
 	public static void applyCallbackListeners(ValidatorFactory validatorFactory, ActivationContext context) {
 		if ( isValidationEnabled( context ) ) {
 			disableNullabilityChecking( context );
-			setupListener( validatorFactory, context.getServiceRegistry() );
+			setupListener( validatorFactory, context.getServiceRegistry(), context.getSessionFactory() );
 		}
 	}
 
@@ -141,7 +153,7 @@ class TypeSafeActivator {
 				.getSettings().get( CHECK_NULLABILITY ) == null;
 	}
 
-	private static void setupListener(ValidatorFactory validatorFactory, SessionFactoryServiceRegistry serviceRegistry) {
+	private static void setupListener(ValidatorFactory validatorFactory, SessionFactoryServiceRegistry serviceRegistry, SessionFactoryImplementor sessionFactory) {
 		final ClassLoaderService classLoaderService = serviceRegistry.requireService( ClassLoaderService.class );
 		final ConfigurationService cfgService = serviceRegistry.requireService( ConfigurationService.class );
 		final BeanValidationEventListener listener =
@@ -152,7 +164,8 @@ class TypeSafeActivator {
 		listenerRegistry.appendListeners( EventType.PRE_UPDATE, listener );
 		listenerRegistry.appendListeners( EventType.PRE_DELETE, listener );
 		listenerRegistry.appendListeners( EventType.PRE_UPSERT, listener );
-		listener.initialize( cfgService.getSettings(), classLoaderService );
+		listenerRegistry.appendListeners( EventType.PRE_COLLECTION_UPDATE, listener );
+		sessionFactory.addObserver( listener );
 	}
 
 	private static boolean isConstraintBasedValidationEnabled(ActivationContext context) {

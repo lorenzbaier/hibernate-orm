@@ -1,29 +1,18 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot.internal;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
+import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.Entity;
+import jakarta.persistence.MapsId;
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.DuplicateMappingException;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.SessionFactory;
 import org.hibernate.annotations.CollectionTypeRegistration;
 import org.hibernate.annotations.Imported;
 import org.hibernate.annotations.Parameter;
@@ -33,9 +22,8 @@ import org.hibernate.boot.model.IdentifierGeneratorDefinition;
 import org.hibernate.boot.model.NamedEntityGraphDefinition;
 import org.hibernate.boot.model.TypeDefinition;
 import org.hibernate.boot.model.TypeDefinitionRegistry;
-import org.hibernate.boot.model.TypeDefinitionRegistryStandardImpl;
 import org.hibernate.boot.model.convert.internal.AttributeConverterManager;
-import org.hibernate.boot.model.convert.internal.ClassBasedConverterDescriptor;
+import org.hibernate.boot.model.convert.internal.ConverterDescriptors;
 import org.hibernate.boot.model.convert.spi.ConverterAutoApplyHandler;
 import org.hibernate.boot.model.convert.spi.ConverterDescriptor;
 import org.hibernate.boot.model.convert.spi.ConverterRegistry;
@@ -59,9 +47,7 @@ import org.hibernate.boot.model.relational.QualifiedTableName;
 import org.hibernate.boot.model.relational.SqlStringGenerationContext;
 import org.hibernate.boot.model.source.internal.ImplicitColumnNamingSecondPass;
 import org.hibernate.boot.model.source.spi.LocalMetadataBuildingContext;
-import org.hibernate.boot.models.internal.ClassLoaderServiceLoading;
 import org.hibernate.boot.models.internal.GlobalRegistrationsImpl;
-import org.hibernate.boot.models.internal.ModelsHelper;
 import org.hibernate.boot.models.spi.GlobalRegistrations;
 import org.hibernate.boot.models.xml.internal.PersistenceUnitMetadataImpl;
 import org.hibernate.boot.models.xml.spi.PersistenceUnitMetadata;
@@ -70,6 +56,7 @@ import org.hibernate.boot.query.NamedNativeQueryDefinition;
 import org.hibernate.boot.query.NamedProcedureCallDefinition;
 import org.hibernate.boot.query.NamedResultSetMappingDescriptor;
 import org.hibernate.boot.spi.BootstrapContext;
+import org.hibernate.boot.spi.ClassmateContext;
 import org.hibernate.boot.spi.InFlightMetadataCollector;
 import org.hibernate.boot.spi.MetadataBuildingContext;
 import org.hibernate.boot.spi.MetadataBuildingOptions;
@@ -104,8 +91,6 @@ import org.hibernate.metamodel.CollectionClassification;
 import org.hibernate.metamodel.mapping.DiscriminatorType;
 import org.hibernate.metamodel.spi.EmbeddableInstantiator;
 import org.hibernate.models.spi.ClassDetails;
-import org.hibernate.models.spi.ModelsConfiguration;
-import org.hibernate.models.spi.SourceModelBuildingContext;
 import org.hibernate.query.named.NamedObjectRepository;
 import org.hibernate.query.sqm.function.SqmFunctionDescriptor;
 import org.hibernate.query.sqm.function.SqmFunctionRegistry;
@@ -115,10 +100,19 @@ import org.hibernate.type.spi.TypeConfiguration;
 import org.hibernate.usertype.CompositeUserType;
 import org.hibernate.usertype.UserType;
 
-import jakarta.persistence.AttributeConverter;
-import jakarta.persistence.Embeddable;
-import jakarta.persistence.Entity;
-import jakarta.persistence.MapsId;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hibernate.boot.model.naming.Identifier.toIdentifier;
 import static org.hibernate.boot.model.relational.internal.SqlStringGenerationContextImpl.fromExplicit;
@@ -193,19 +187,15 @@ public class InFlightMetadataCollectorImpl
 	private Set<DelayedPropertyReferenceHandler> delayedPropertyReferenceHandlers;
 	private List<Function<MetadataBuildingContext, Boolean>> valueResolvers;
 
-	private final SourceModelBuildingContext sourceModelBuildingContext;
-
 	public InFlightMetadataCollectorImpl(
 			BootstrapContext bootstrapContext,
-			SourceModelBuildingContext sourceModelBuildingContext,
 			MetadataBuildingOptions options) {
 		this.bootstrapContext = bootstrapContext;
-		this.sourceModelBuildingContext = sourceModelBuildingContext;
 		this.options = options;
 
 		uuid = UUID.randomUUID();
 
-		globalRegistrations = new GlobalRegistrationsImpl( sourceModelBuildingContext, bootstrapContext );
+		globalRegistrations = new GlobalRegistrationsImpl( bootstrapContext.getModelsContext(), bootstrapContext );
 		persistenceUnitMetadata = new PersistenceUnitMetadataImpl();
 
 		for ( Map.Entry<String, SqmFunctionDescriptor> sqlFunctionEntry : bootstrapContext.getSqlFunctions().entrySet() ) {
@@ -222,21 +212,6 @@ public class InFlightMetadataCollectorImpl
 		configurationService = bootstrapContext.getConfigurationService();
 	}
 
-	public InFlightMetadataCollectorImpl(BootstrapContext bootstrapContext, MetadataBuildingOptions options) {
-		this( bootstrapContext, createModelBuildingContext( bootstrapContext ), options );
-	}
-
-	private static SourceModelBuildingContext createModelBuildingContext(BootstrapContext bootstrapContext) {
-		final ClassLoaderServiceLoading classLoading =
-				new ClassLoaderServiceLoading( bootstrapContext.getClassLoaderService() );
-
-		final ModelsConfiguration modelsConfiguration = new ModelsConfiguration();
-		modelsConfiguration.setClassLoading( classLoading );
-		modelsConfiguration.configValue( "hibernate.models.jandex.index", bootstrapContext.getJandexView() );
-		modelsConfiguration.setRegistryPrimer( ModelsHelper::preFillRegistries );
-		return modelsConfiguration.bootstrap();
-	}
-
 	@Override
 	public UUID getUUID() {
 		return null;
@@ -250,11 +225,6 @@ public class InFlightMetadataCollectorImpl
 	@Override
 	public BootstrapContext getBootstrapContext() {
 		return bootstrapContext;
-	}
-
-	@Override
-	public SourceModelBuildingContext getSourceModelBuildingContext() {
-		return sourceModelBuildingContext;
 	}
 
 	@Override
@@ -374,7 +344,7 @@ public class InFlightMetadataCollectorImpl
 	}
 
 	@Override
-	public SessionFactory buildSessionFactory() {
+	public SessionFactoryImplementor buildSessionFactory() {
 		throw new UnsupportedOperationException(
 				"You should not be building a SessionFactory from an in-flight metadata collector; and of course " +
 						"we should better segment this in the API :)"
@@ -592,27 +562,24 @@ public class InFlightMetadataCollectorImpl
 		return attributeConverterManager;
 	}
 
-	@Override
-	public void addAttributeConverter(Class<? extends AttributeConverter<?,?>> converterClass) {
-		attributeConverterManager.addConverter(
-				new ClassBasedConverterDescriptor( converterClass, getBootstrapContext().getClassmateContext() )
-		);
+	private ClassmateContext getClassmateContext() {
+		return getBootstrapContext().getClassmateContext();
 	}
 
 	@Override
-	public void addOverridableConverter(Class<? extends AttributeConverter<?,?>> converterClass) {
+	public void addAttributeConverter(Class<? extends AttributeConverter<?, ?>> converterClass) {
 		attributeConverterManager.addConverter(
-				new ClassBasedConverterDescriptor( converterClass, getBootstrapContext().getClassmateContext() ) {
-					@Override
-					public boolean overrideable() {
-						return true;
-					}
-				}
-		);
+				ConverterDescriptors.of( converterClass, null, false, getClassmateContext() ) );
 	}
 
 	@Override
-	public void addAttributeConverter(ConverterDescriptor descriptor) {
+	public void addOverridableConverter(Class<? extends AttributeConverter<?, ?>> converterClass) {
+		attributeConverterManager.addConverter(
+				ConverterDescriptors.of( converterClass, null, true, getClassmateContext() ) );
+	}
+
+	@Override
+	public void addAttributeConverter(ConverterDescriptor<?,?> descriptor) {
 		attributeConverterManager.addConverter( descriptor );
 	}
 
@@ -740,7 +707,7 @@ public class InFlightMetadataCollectorImpl
 
 	@Override
 	public void addNamedEntityGraph(NamedEntityGraphDefinition definition) {
-		final String name = definition.getRegisteredName();
+		final String name = definition.name();
 		final NamedEntityGraphDefinition previous = namedEntityGraphMap.put( name, definition );
 		if ( previous != null ) {
 			throw new DuplicateMappingException( DuplicateMappingException.Type.NAMED_ENTITY_GRAPH, name );
@@ -1866,6 +1833,11 @@ public class InFlightMetadataCollectorImpl
 			if ( sp.isInPrimaryKey() ) {
 				final String referenceEntityName = sp.getReferencedEntityName();
 				final PersistentClass classMapping = getEntityBinding( referenceEntityName );
+				if ( classMapping == null ) {
+					throw new HibernateException(
+							"Primary key referenced an unknown entity : " + referenceEntityName
+					);
+				}
 				final String dependentTable = classMapping.getTable().getQualifiedTableName().render();
 				if ( !isADependencyOf.containsKey( dependentTable ) ) {
 					isADependencyOf.put( dependentTable, new HashSet<>() );
@@ -2041,32 +2013,32 @@ public class InFlightMetadataCollectorImpl
 		}
 
 		for ( CacheRegionDefinition cacheRegionDefinition : bootstrapContext.getCacheRegionDefinitions() ) {
-			if ( cacheRegionDefinition.getRegionType() == CacheRegionDefinition.CacheRegionType.ENTITY ) {
-				final PersistentClass entityBinding = getEntityBinding( cacheRegionDefinition.getRole() );
+			if ( cacheRegionDefinition.regionType() == CacheRegionDefinition.CacheRegionType.ENTITY ) {
+				final PersistentClass entityBinding = getEntityBinding( cacheRegionDefinition.role() );
 				if ( entityBinding == null ) {
 					throw new HibernateException(
-							"Cache override referenced an unknown entity : " + cacheRegionDefinition.getRole()
+							"Cache override referenced an unknown entity : " + cacheRegionDefinition.role()
 					);
 				}
 				if ( !( entityBinding instanceof RootClass rootClass ) ) {
 					throw new HibernateException(
-							"Cache override referenced a non-root entity : " + cacheRegionDefinition.getRole()
+							"Cache override referenced a non-root entity : " + cacheRegionDefinition.role()
 					);
 				}
 				entityBinding.setCached( true );
-				rootClass.setCacheRegionName( cacheRegionDefinition.getRegion() );
-				rootClass.setCacheConcurrencyStrategy( cacheRegionDefinition.getUsage() );
-				rootClass.setLazyPropertiesCacheable( cacheRegionDefinition.isCacheLazy() );
+				rootClass.setCacheRegionName( cacheRegionDefinition.region() );
+				rootClass.setCacheConcurrencyStrategy( cacheRegionDefinition.usage() );
+				rootClass.setLazyPropertiesCacheable( cacheRegionDefinition.cacheLazy() );
 			}
-			else if ( cacheRegionDefinition.getRegionType() == CacheRegionDefinition.CacheRegionType.COLLECTION ) {
-				final Collection collectionBinding = getCollectionBinding( cacheRegionDefinition.getRole() );
+			else if ( cacheRegionDefinition.regionType() == CacheRegionDefinition.CacheRegionType.COLLECTION ) {
+				final Collection collectionBinding = getCollectionBinding( cacheRegionDefinition.role() );
 				if ( collectionBinding == null ) {
 					throw new HibernateException(
-							"Cache override referenced an unknown collection role : " + cacheRegionDefinition.getRole()
+							"Cache override referenced an unknown collection role : " + cacheRegionDefinition.role()
 					);
 				}
-				collectionBinding.setCacheRegionName( cacheRegionDefinition.getRegion() );
-				collectionBinding.setCacheConcurrencyStrategy( cacheRegionDefinition.getUsage() );
+				collectionBinding.setCacheRegionName( cacheRegionDefinition.region() );
+				collectionBinding.setCacheConcurrencyStrategy( cacheRegionDefinition.usage() );
 			}
 		}
 	}

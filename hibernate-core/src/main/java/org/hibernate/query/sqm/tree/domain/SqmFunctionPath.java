@@ -1,11 +1,10 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
 
 import org.hibernate.metamodel.mapping.CollectionPart;
-import org.hibernate.metamodel.model.domain.EmbeddableDomainType;
 import org.hibernate.metamodel.model.domain.EntityDomainType;
 import org.hibernate.metamodel.model.domain.internal.BasicSqmPathSource;
 import org.hibernate.metamodel.model.domain.internal.EmbeddedSqmPathSource;
@@ -71,7 +70,7 @@ public class SqmFunctionPath<T> extends AbstractSqmPath<T> {
 			return new EmbeddedSqmPathSource<>(
 					navigablePath.getFullPath(),
 					null,
-					(EmbeddableDomainType<X>) managedType,
+					(SqmEmbeddableDomainType<X>) managedType,
 					Bindable.BindableType.SINGULAR_ATTRIBUTE,
 					false
 			);
@@ -125,7 +124,7 @@ public class SqmFunctionPath<T> extends AbstractSqmPath<T> {
 		if ( indexedPath != null ) {
 			return indexedPath;
 		}
-		if ( !( getNodeType().getSqmPathType() instanceof BasicPluralType<?, ?> ) ) {
+		if ( !( getNodeType().getPathType() instanceof BasicPluralType<?, ?> ) ) {
 			throw new UnsupportedOperationException( "Index access is only supported for basic plural types." );
 		}
 		final QueryEngine queryEngine = creationState.getCreationContext().getQueryEngine();

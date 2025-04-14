@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.loader.ast.internal;
@@ -54,7 +54,8 @@ public class LoaderHelper {
 	 * @param lockOptions Contains the requested lock mode.
 	 * @param session The session which is the source of the event being processed.
 	 */
-	public static void upgradeLock(Object object, EntityEntry entry, LockOptions lockOptions, EventSource session) {
+	public static void upgradeLock(
+			Object object, EntityEntry entry, LockOptions lockOptions, SharedSessionContractImplementor session) {
 		final LockMode requestedLockMode = lockOptions.getLockMode();
 		if ( requestedLockMode.greaterThan( entry.getLockMode() ) ) {
 			// Request is for a more restrictive lock than the lock already held
@@ -108,22 +109,23 @@ public class LoaderHelper {
 							persister.forceVersionIncrement( entry.getId(), entry.getVersion(), false, session );
 					entry.forceLocked( object, nextVersion );
 				}
-				else {
-					if ( entry.isExistsInDatabase() ) {
-						final EventMonitor eventMonitor = session.getEventMonitor();
-						final DiagnosticEvent entityLockEvent = eventMonitor.beginEntityLockEvent();
-						boolean success = false;
-						try {
-							persister.lock( entry.getId(), entry.getVersion(), object, lockOptions, session );
-							success = true;
-						}
-						finally {
-							eventMonitor.completeEntityLockEvent( entityLockEvent, entry.getId(),
-									persister.getEntityName(), lockOptions.getLockMode(), success, session );
-						}
+				else if ( entry.isExistsInDatabase() ) {
+					final EventMonitor eventMonitor = session.getEventMonitor();
+					final DiagnosticEvent entityLockEvent = eventMonitor.beginEntityLockEvent();
+					boolean success = false;
+					try {
+						persister.lock( entry.getId(), entry.getVersion(), object, lockOptions, session );
+						success = true;
 					}
-					else {
-						session.forceFlush( entry );
+					finally {
+						eventMonitor.completeEntityLockEvent( entityLockEvent, entry.getId(),
+								persister.getEntityName(), lockOptions.getLockMode(), success, session );
+					}
+				}
+				else {
+					// should only be possible for a stateful session
+					if ( session instanceof EventSource eventSource ) {
+						eventSource.forceFlush( entry );
 					}
 				}
 				entry.setLockMode(requestedLockMode);
@@ -148,11 +150,8 @@ public class LoaderHelper {
 	/**
 	 * Determine if given influencers indicate read-only
 	 */
-	public static Boolean getReadOnlyFromLoadQueryInfluencers(LoadQueryInfluencers loadQueryInfluencers) {
-		if ( loadQueryInfluencers == null ) {
-			return null;
-		}
-		return loadQueryInfluencers.getReadOnly();
+	public static Boolean getReadOnlyFromLoadQueryInfluencers(LoadQueryInfluencers influencers) {
+		return influencers == null ? null : influencers.getReadOnly();
 	}
 
 	/**
@@ -232,29 +231,23 @@ public class LoaderHelper {
 		assert jdbcOperation != null;
 		assert jdbcParameter != null;
 
-		final JdbcParameterBindings jdbcParameterBindings = new JdbcParameterBindingsImpl( 1);
-		jdbcParameterBindings.addBinding(
-				jdbcParameter,
-				new JdbcParameterBindingImpl( arrayJdbcMapping, idsToInitialize )
-		);
-
-		final SubselectFetch.RegistrationHandler subSelectFetchableKeysHandler = SubselectFetch.createRegistrationHandler(
-				session.getPersistenceContext().getBatchFetchQueue(),
-				sqlAst,
-				JdbcParametersList.singleton( jdbcParameter ),
-				jdbcParameterBindings
-		);
-
+		final JdbcParameterBindings bindings = new JdbcParameterBindingsImpl( 1);
+		bindings.addBinding( jdbcParameter, new JdbcParameterBindingImpl( arrayJdbcMapping, idsToInitialize ) );
 		return session.getJdbcServices().getJdbcSelectExecutor().list(
 				jdbcOperation,
-				jdbcParameterBindings,
+				bindings,
 				new SingleIdExecutionContext(
 						entityId,
 						entityInstance,
 						rootEntityDescriptor,
 						readOnly,
 						lockOptions,
-						subSelectFetchableKeysHandler,
+						SubselectFetch.createRegistrationHandler(
+								session.getPersistenceContext().getBatchFetchQueue(),
+								sqlAst,
+								JdbcParametersList.singleton( jdbcParameter ),
+								bindings
+						),
 						session
 				),
 				RowTransformerStandardImpl.instance(),

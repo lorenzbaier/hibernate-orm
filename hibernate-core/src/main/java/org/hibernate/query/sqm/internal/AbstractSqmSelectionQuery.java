@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.internal;
@@ -16,12 +16,11 @@ import org.hibernate.query.QueryLogging;
 import org.hibernate.query.restriction.Restriction;
 import org.hibernate.query.SelectionQuery;
 import org.hibernate.query.criteria.JpaSelection;
-import org.hibernate.query.hql.internal.NamedHqlQueryMementoImpl;
 import org.hibernate.query.hql.internal.QuerySplitter;
-import org.hibernate.query.named.NamedQueryMemento;
 import org.hibernate.query.spi.AbstractSelectionQuery;
 import org.hibernate.query.spi.HqlInterpretation;
 import org.hibernate.query.spi.MutableQueryOptions;
+import org.hibernate.query.spi.ParameterMetadataImplementor;
 import org.hibernate.query.spi.QueryEngine;
 import org.hibernate.query.spi.QueryOptions;
 import org.hibernate.query.spi.SelectQueryPlan;
@@ -35,11 +34,9 @@ import org.hibernate.query.sqm.tree.select.SqmSelectStatement;
 import org.hibernate.query.sqm.tree.select.SqmSelectableNode;
 import org.hibernate.query.sqm.tree.select.SqmSelection;
 import org.hibernate.sql.results.internal.TupleMetadata;
-import org.hibernate.type.BasicType;
 import org.hibernate.type.BasicTypeRegistry;
 
 import java.util.List;
-import java.util.Map;
 
 import jakarta.persistence.TupleElement;
 import jakarta.persistence.criteria.CompoundSelection;
@@ -113,8 +110,7 @@ abstract class AbstractSqmSelectionQuery<R> extends AbstractSelectionQuery<R> {
 	public abstract TupleMetadata getTupleMetadata();
 
 	private SqmSelectStatement<R> getSqmSelectStatement() {
-		final SqmStatement<R> sqmStatement = getSqmStatement();
-		if ( sqmStatement instanceof SqmSelectStatement<R> selectStatement ) {
+		if ( getSqmStatement() instanceof SqmSelectStatement<R> selectStatement ) {
 			return selectStatement;
 		}
 		else {
@@ -172,10 +168,10 @@ abstract class AbstractSqmSelectionQuery<R> extends AbstractSelectionQuery<R> {
 		final List<KeyedResult<R>> results =
 				new SqmSelectionQueryImpl<KeyedResult<R>>( this, keyedPage )
 						.getResultList();
-		final Page page = keyedPage.getPage();
+		final int pageSize = keyedPage.getPage().getSize();
 		return new KeyedResultList<>(
-				collectResults( results, page.getSize(), keyedPage.getKeyInterpretation() ),
-				collectKeys( results, page.getSize() ),
+				collectResults( results, pageSize, keyedPage.getKeyInterpretation() ),
+				collectKeys( results, pageSize ),
 				keyedPage,
 				nextPage( keyedPage, results ),
 				previousPage( keyedPage, results )
@@ -256,8 +252,8 @@ abstract class AbstractSqmSelectionQuery<R> extends AbstractSelectionQuery<R> {
 		);
 	}
 
-	protected void applyOptions(NamedSqmQueryMemento<?> memento) {
-		applyOptions( (NamedQueryMemento<?>) memento );
+	protected void applySqmOptions(NamedSqmQueryMemento<?> memento) {
+		applyOptions( memento );
 
 		if ( memento.getFirstResult() != null ) {
 			setFirstResult( memento.getFirstResult() );
@@ -270,12 +266,10 @@ abstract class AbstractSqmSelectionQuery<R> extends AbstractSelectionQuery<R> {
 		if ( memento.getParameterTypes() != null ) {
 			final BasicTypeRegistry basicTypeRegistry =
 					getSessionFactory().getTypeConfiguration().getBasicTypeRegistry();
-			for ( Map.Entry<String, String> entry : memento.getParameterTypes().entrySet() ) {
-				final BasicType<?> type =
-						basicTypeRegistry.getRegisteredType( entry.getValue() );
-				getParameterMetadata()
-						.getQueryParameter( entry.getKey() ).applyAnticipatedType( type );
-			}
+			final ParameterMetadataImplementor parameterMetadata = getParameterMetadata();
+			memento.getParameterTypes().forEach( (key, value) ->
+					parameterMetadata.getQueryParameter( key )
+							.applyAnticipatedType( basicTypeRegistry.getRegisteredType( value ) ) );
 		}
 	}
 
@@ -393,7 +387,7 @@ abstract class AbstractSqmSelectionQuery<R> extends AbstractSelectionQuery<R> {
 	}
 
 	protected static <T> HqlInterpretation<T> interpretation(
-			NamedHqlQueryMementoImpl<?> memento,
+			NamedSqmQueryMemento<?> memento,
 			Class<T> expectedResultType,
 			SharedSessionContractImplementor session) {
 		final QueryEngine queryEngine = session.getFactory().getQueryEngine();

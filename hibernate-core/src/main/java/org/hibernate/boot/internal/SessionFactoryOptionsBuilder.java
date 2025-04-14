@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot.internal;
@@ -63,7 +63,7 @@ import org.hibernate.jpa.internal.util.CacheModeHelper;
 import org.hibernate.jpa.spi.JpaCompliance;
 import org.hibernate.jpa.spi.MutableJpaCompliance;
 import org.hibernate.proxy.EntityNotFoundDelegate;
-import org.hibernate.query.ImmutableEntityUpdateQueryHandlingMode;
+import org.hibernate.query.spi.ImmutableEntityUpdateQueryHandlingMode;
 import org.hibernate.query.NullPrecedence;
 import org.hibernate.query.criteria.ValueHandlingMode;
 import org.hibernate.query.hql.HqlTranslator;
@@ -159,7 +159,6 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	private Supplier<? extends Interceptor> statelessInterceptorSupplier;
 	private StatementInspector statementInspector;
 	private final List<SessionFactoryObserver> sessionFactoryObserverList = new ArrayList<>();
-	private final BaselineSessionEventsListenerBuilder baselineSessionEventsListenerBuilder;	// not exposed on builder atm
 
 	// persistence behavior
 	private CustomEntityDirtinessStrategy customEntityDirtinessStrategy;
@@ -168,8 +167,6 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	private boolean identifierRollbackEnabled;
 	private boolean checkNullability;
 	private boolean initializeLazyStateOutsideTransactions;
-	private TempTableDdlTransactionHandling tempTableDdlTransactionHandling;
-	private boolean delayBatchFetchLoaderCreations;
 	private int defaultBatchFetchSize;
 	private Integer maximumFetchDepth;
 	private boolean subselectFetchEnabled;
@@ -216,9 +213,6 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	private boolean directReferenceCacheEntriesEnabled;
 	private boolean autoEvictCollectionCache;
 
-	// Schema tooling
-	private SchemaAutoTooling schemaAutoTooling;
-
 	// JDBC Handling
 	private boolean getGeneratedKeysEnabled;
 	private int jdbcBatchSize;
@@ -227,7 +221,7 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	private boolean commentsEnabled;
 	private PhysicalConnectionHandlingMode connectionHandlingMode;
 	private boolean connectionProviderDisablesAutoCommit;
-	private TimeZone jdbcTimeZone;
+	private final TimeZone jdbcTimeZone;
 	private final ValueHandlingMode criteriaValueHandlingMode;
 	private final boolean criteriaCopyTreeEnabled;
 	private final boolean nativeJdbcParametersIgnored;
@@ -258,6 +252,16 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	private final CacheMode initialSessionCacheMode;
 	private final FlushMode initialSessionFlushMode;
 	private final LockOptions defaultLockOptions;
+
+	// deprecated stuff
+	@Deprecated
+	private TempTableDdlTransactionHandling tempTableDdlTransactionHandling;
+	@Deprecated(forRemoval = true)
+	private final BaselineSessionEventsListenerBuilder baselineSessionEventsListenerBuilder;
+	@Deprecated(forRemoval = true)
+	private SchemaAutoTooling schemaAutoTooling;
+	@Deprecated(forRemoval = true)
+	private boolean delayBatchFetchLoaderCreations;
 
 	@SuppressWarnings( "unchecked" )
 	public SessionFactoryOptionsBuilder(StandardServiceRegistry serviceRegistry, BootstrapContext context) {
@@ -443,6 +447,7 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 			autoEvictCollectionCache = false;
 		}
 
+		// deprecated
 		try {
 			schemaAutoTooling = SchemaAutoTooling.interpret( (String) settings.get( AvailableSettings.HBM2DDL_AUTO ) );
 		}
@@ -450,6 +455,7 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 			log.warn( e.getMessage() + "  Ignoring" );
 		}
 
+		// deprecated
 		final ExtractedDatabaseMetaData meta = jdbcServices.getExtractedMetaDataSupport();
 		if ( meta.doesDataDefinitionCauseTransactionCommit() ) {
 			tempTableDdlTransactionHandling =
@@ -936,12 +942,12 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 		return initializeLazyStateOutsideTransactions;
 	}
 
-	@Override
+	@Override @Deprecated
 	public TempTableDdlTransactionHandling getTempTableDdlTransactionHandling() {
 		return tempTableDdlTransactionHandling;
 	}
 
-	@Override
+	@Override @Deprecated(forRemoval = true)
 	public boolean isDelayBatchFetchLoaderCreationsEnabled() {
 		return delayBatchFetchLoaderCreations;
 	}
@@ -1041,7 +1047,7 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 		return autoEvictCollectionCache;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SchemaAutoTooling getSchemaAutoTooling() {
 		return schemaAutoTooling;
 	}
@@ -1134,6 +1140,11 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 	@Override
 	public ImmutableEntityUpdateQueryHandlingMode getImmutableEntityUpdateQueryHandlingMode() {
 		return immutableEntityUpdateQueryHandlingMode;
+	}
+
+	@Override
+	public boolean allowImmutableEntityUpdate() {
+		return immutableEntityUpdateQueryHandlingMode != ImmutableEntityUpdateQueryHandlingMode.EXCEPTION;
 	}
 
 	@Override
@@ -1376,6 +1387,7 @@ public class SessionFactoryOptionsBuilder implements SessionFactoryOptions {
 		this.initializeLazyStateOutsideTransactions = enabled;
 	}
 
+	@Deprecated(forRemoval = true)
 	public void applyTempTableDdlTransactionHandling(TempTableDdlTransactionHandling handling) {
 		this.tempTableDdlTransactionHandling = handling;
 	}

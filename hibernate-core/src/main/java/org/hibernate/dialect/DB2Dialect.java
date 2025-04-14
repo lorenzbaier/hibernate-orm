@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect;
@@ -49,6 +49,7 @@ import org.hibernate.engine.jdbc.env.spi.IdentifierHelper;
 import org.hibernate.engine.jdbc.env.spi.IdentifierHelperBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.hibernate.exception.LockTimeoutException;
 import org.hibernate.exception.spi.SQLExceptionConversionDelegate;
 import org.hibernate.exception.spi.TemplatedViolatedConstraintNameExtractor;
@@ -1123,7 +1124,15 @@ public class DB2Dialect extends Dialect {
 	public ViolatedConstraintNameExtractor getViolatedConstraintNameExtractor() {
 		return new TemplatedViolatedConstraintNameExtractor(
 				sqle -> switch ( extractErrorCode( sqle ) ) {
-					case -803 -> extractUsingTemplate( "SQLERRMC=1;", ",", sqle.getMessage() );
+					case -803 -> {
+						// Unique constraint
+						final String constraintWithKind = extractUsingTemplate( "SQLERRMC=", ",", sqle.getMessage() );
+						// strip off "1;" for PK, or "2;" for other UK
+						yield constraintWithKind == null ? null : constraintWithKind.substring(2);
+					}
+					case -543, -545, -530,-531 ->
+						// Foreign key or check constraint
+							extractUsingTemplate( "SQLERRMC=", ",", sqle.getMessage() );
 					default -> null;
 				}
 		);
@@ -1131,17 +1140,24 @@ public class DB2Dialect extends Dialect {
 
 	@Override
 	public SQLExceptionConversionDelegate buildSQLExceptionConversionDelegate() {
-		return (sqlException, message, sql) -> switch ( extractErrorCode( sqlException ) ) {
-			case -952 -> new LockTimeoutException( message, sqlException, sql );
-			case -803 -> new ConstraintViolationException(
-					message,
-					sqlException,
-					sql,
-					ConstraintViolationException.ConstraintKind.UNIQUE,
-					getViolatedConstraintNameExtractor().extractConstraintName( sqlException )
-			);
-			default -> null;
-		};
+		return (sqlException, message, sql) ->
+				switch ( extractErrorCode( sqlException ) ) {
+					case -952 ->
+							new LockTimeoutException( message, sqlException, sql );
+					case -803 ->
+							new ConstraintViolationException( message, sqlException, sql, ConstraintKind.UNIQUE,
+									getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+					case -530,-531 ->
+							new ConstraintViolationException( message, sqlException, sql, ConstraintKind.FOREIGN_KEY,
+									getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+					case -407 ->
+							new ConstraintViolationException( message, sqlException, sql, ConstraintKind.NOT_NULL,
+									getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+					case -543,-545 ->
+							new ConstraintViolationException( message, sqlException, sql, ConstraintKind.CHECK,
+									getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+					default -> null;
+				};
 	}
 
 	@Override
@@ -1366,4 +1382,25 @@ public class DB2Dialect extends Dialect {
 	public String getFromDualForSelectOnly() {
 		return " from " + getDual();
 	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntax() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsWithClauseInSubquery() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntaxInQuantifiedPredicates() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntaxInInList() {
+		return false;
+	}
+
 }

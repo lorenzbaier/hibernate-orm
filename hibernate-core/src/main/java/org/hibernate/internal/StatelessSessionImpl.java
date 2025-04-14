@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.internal;
@@ -9,9 +9,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import org.hibernate.AssertionFailure;
 import org.hibernate.FlushMode;
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
+import org.hibernate.LockOptions;
 import org.hibernate.SessionException;
 import org.hibernate.StatelessSession;
 import org.hibernate.TransientObjectException;
@@ -24,13 +26,14 @@ import org.hibernate.cache.spi.access.EntityDataAccess;
 import org.hibernate.cache.spi.access.SoftLock;
 import org.hibernate.collection.spi.CollectionSemantics;
 import org.hibernate.collection.spi.PersistentCollection;
-import org.hibernate.engine.internal.PersistenceContexts;
 import org.hibernate.engine.spi.CollectionEntry;
 import org.hibernate.engine.spi.EffectiveEntityGraph;
+import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityHolder;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
 import org.hibernate.engine.spi.PersistenceContext;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.engine.transaction.internal.jta.JtaStatusHelper;
 import org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform;
@@ -71,12 +74,13 @@ import org.hibernate.generator.values.GeneratedValues;
 import org.hibernate.graph.GraphSemantic;
 import org.hibernate.graph.spi.RootGraphImplementor;
 import org.hibernate.id.IdentifierGenerationException;
+import org.hibernate.loader.ast.internal.LoaderHelper;
 import org.hibernate.loader.ast.spi.CascadingFetchProfile;
+import org.hibernate.loader.ast.spi.MultiIdLoadOptions;
+import org.hibernate.loader.internal.CacheLoadHelper;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.proxy.LazyInitializer;
-import org.hibernate.query.criteria.JpaCriteriaQuery;
-import org.hibernate.query.criteria.JpaRoot;
 import org.hibernate.stat.spi.StatisticsImplementor;
 import org.hibernate.tuple.entity.EntityMetamodel;
 
@@ -85,6 +89,7 @@ import jakarta.transaction.SystemException;
 
 import static org.hibernate.engine.internal.ManagedTypeHelper.asPersistentAttributeInterceptable;
 import static org.hibernate.engine.internal.ManagedTypeHelper.isPersistentAttributeInterceptable;
+import static org.hibernate.engine.internal.PersistenceContexts.createPersistenceContext;
 import static org.hibernate.engine.internal.Versioning.incrementVersion;
 import static org.hibernate.engine.internal.Versioning.seedVersion;
 import static org.hibernate.engine.internal.Versioning.setVersion;
@@ -92,7 +97,6 @@ import static org.hibernate.event.internal.DefaultInitializeCollectionEventListe
 import static org.hibernate.generator.EventType.INSERT;
 import static org.hibernate.internal.util.NullnessUtil.castNonNull;
 import static org.hibernate.loader.internal.CacheLoadHelper.initializeCollectionFromCache;
-import static org.hibernate.loader.internal.CacheLoadHelper.loadFromSecondLevelCache;
 import static org.hibernate.pretty.MessageHelper.collectionInfoString;
 import static org.hibernate.pretty.MessageHelper.infoString;
 import static org.hibernate.proxy.HibernateProxy.extractLazyInitializer;
@@ -124,6 +128,8 @@ import static org.hibernate.proxy.HibernateProxy.extractLazyInitializer;
 public class StatelessSessionImpl extends AbstractSharedSessionContract implements StatelessSession {
 	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( StatelessSessionImpl.class );
 
+	public static final MultiIdLoadOptions MULTI_ID_LOAD_OPTIONS = new MultiLoadOptions();
+
 	private final LoadQueryInfluencers influencers;
 	private final PersistenceContext temporaryPersistenceContext;
 	private final boolean connectionProvided;
@@ -134,10 +140,12 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 	public StatelessSessionImpl(SessionFactoryImpl factory, SessionCreationOptions options) {
 		super( factory, options );
 		connectionProvided = options.getConnection() != null;
-		temporaryPersistenceContext = PersistenceContexts.createPersistenceContext( this );
+		temporaryPersistenceContext = createPersistenceContext( this );
 		influencers = new LoadQueryInfluencers( getFactory() );
 		eventListenerGroups = factory.getEventListenerGroups();
 		setUpMultitenancy( factory, influencers );
+		// a nonzero batch size forces use of write-behind
+		// therefore ignore the value of hibernate.jdbc.batch_size
 		setJdbcBatchSize( 0 );
 	}
 
@@ -183,7 +191,8 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 			if ( !generator.generatesOnInsert() ) {
 				throw new IdentifierGenerationException( "Identifier generator must generate on insert" );
 			}
-			id = ( (BeforeExecutionGenerator) generator ).generate( this, entity, null, INSERT );
+			final Object currentValue = generator.allowAssignedIdentifiers() ? persister.getIdentifier( entity ) : null;
+			id = ( (BeforeExecutionGenerator) generator ).generate( this, entity, currentValue, INSERT );
 			persister.setIdentifier( entity, id, this );
 			if ( firePreInsert(entity, id, state, persister) ) {
 				return id;
@@ -712,8 +721,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 		final EntityPersister persister = requireEntityPersister( entityName );
 		if ( persister.canReadFromCache() ) {
 			final Object cachedEntity =
-					loadFromSecondLevelCache( this, null, lockMode, persister,
-							generateEntityKey( id, persister ) );
+					loadFromSecondLevelCache( persister, generateEntityKey( id, persister ), null, lockMode );
 			if ( cachedEntity != null ) {
 				temporaryPersistenceContext.clear();
 				return cachedEntity;
@@ -724,6 +732,16 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 			temporaryPersistenceContext.clear();
 		}
 		return result;
+	}
+
+	@Override
+	public <T> T get(EntityGraph<T> graph, Object id) {
+		return get( graph, GraphSemantic.LOAD , id);
+	}
+
+	@Override
+	public <T> T get(EntityGraph<T> graph, Object id, LockMode lockMode) {
+		return get( graph, GraphSemantic.LOAD, id, lockMode);
 	}
 
 	@Override
@@ -751,8 +769,23 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 	}
 
 	@Override
-	public <T> List<T> getMultiple(Class<T> entityClass, List<Object> ids) {
-		for (Object id : ids) {
+	public <T> List<T> getMultiple(Class<T> entityClass, List<?> ids, LockMode lockMode) {
+		for ( Object id : ids ) {
+			if ( id == null ) {
+				throw new IllegalArgumentException( "Null id" );
+			}
+		}
+
+		final EntityPersister persister = requireEntityPersister( entityClass.getName() );
+
+		final List<?> results = persister.multiLoad( ids.toArray(), this, new MultiLoadOptions(lockMode) );
+		//noinspection unchecked
+		return (List<T>) results;
+	}
+
+	@Override
+	public <T> List<T> getMultiple(Class<T> entityClass, List<?> ids) {
+		for ( Object id : ids ) {
 			if ( id == null ) {
 				throw new IllegalArgumentException("Null id");
 			}
@@ -760,44 +793,47 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 
 		final EntityPersister persister = requireEntityPersister( entityClass.getName() );
 
-		final List<Object> uncachedIds;
-		final List<T> list = new ArrayList<>( ids.size() );
-		if ( persister.canReadFromCache() ) {
-			uncachedIds = new ArrayList<>( ids.size() );
-			for (Object id : ids) {
-				final Object cachedEntity =
-						loadFromSecondLevelCache( this, null, LockMode.NONE, persister,
-								generateEntityKey( id, persister ) );
-				if ( cachedEntity == null ) {
-					uncachedIds.add( id );
-					list.add( null );
-				}
-				else {
-					//noinspection unchecked
-					list.add( (T) cachedEntity );
-				}
-			}
-		}
-		else {
-			uncachedIds = ids;
-			for (int i = 0; i < ids.size(); i++) {
-				list.add( null );
-			}
-		}
+		final List<?> results = persister.multiLoad( ids.toArray(), this, MULTI_ID_LOAD_OPTIONS );
+		//noinspection unchecked
+		return (List<T>) results;
 
-		final JpaCriteriaQuery<T> query = getCriteriaBuilder().createQuery(entityClass);
-		final JpaRoot<T> from = query.from(entityClass);
-		query.where( from.get( persister.getIdentifierPropertyName() ).in(uncachedIds) );
-		final List<T> resultList = createSelectionQuery(query).getResultList();
-		for (int i = 0; i < ids.size(); i++) {
-			if ( list.get(i) == null ) {
-				final Object id = ids.get(i);
-				list.set( i, resultList.stream()
-						.filter( entity -> entity != null && persister.getIdentifier( entity, this ).equals(id) )
-						.findFirst().orElse( null ) );
-			}
-		}
-		return list;
+//		final List<Object> uncachedIds;
+//		final List<T> list = new ArrayList<>( ids.size() );
+//		if ( persister.canReadFromCache() ) {
+//			uncachedIds = new ArrayList<>( ids.size() );
+//			for (Object id : ids) {
+//				final Object cachedEntity =
+//						loadFromSecondLevelCache( persister, generateEntityKey( id, persister ), null, LockMode.NONE );
+//				if ( cachedEntity == null ) {
+//					uncachedIds.add( id );
+//					list.add( null );
+//				}
+//				else {
+//					//noinspection unchecked
+//					list.add( (T) cachedEntity );
+//				}
+//			}
+//		}
+//		else {
+//			uncachedIds = unmodifiableList(ids);
+//			for (int i = 0; i < ids.size(); i++) {
+//				list.add( null );
+//			}
+//		}
+//
+//		final JpaCriteriaQuery<T> query = getCriteriaBuilder().createQuery(entityClass);
+//		final JpaRoot<T> from = query.from(entityClass);
+//		query.where( from.get( persister.getIdentifierPropertyName() ).in(uncachedIds) );
+//		final List<T> resultList = createSelectionQuery(query).getResultList();
+//		for (int i = 0; i < ids.size(); i++) {
+//			if ( list.get(i) == null ) {
+//				final Object id = ids.get(i);
+//				list.set( i, resultList.stream()
+//						.filter( entity -> entity != null && persister.getIdentifier( entity, this ).equals(id) )
+//						.findFirst().orElse( null ) );
+//			}
+//		}
+//		return list;
 	}
 
 	@Override
@@ -888,7 +924,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 		}
 	}
 
-	@Override
+	@Override @Deprecated
 	public Object instantiate(String entityName, Object id) {
 		return instantiate( requireEntityPersister( entityName ), id );
 	}
@@ -1159,22 +1195,17 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 		return temporaryPersistenceContext;
 	}
 
-	@Override
-	public void setAutoClear(boolean enabled) {
-		throw new UnsupportedOperationException();
-	}
-
 	public boolean isDefaultReadOnly() {
 		return false;
 	}
 
-	public void setDefaultReadOnly(boolean readOnly) {
-		if ( readOnly ) {
-			throw new UnsupportedOperationException();
-		}
+	@Override
+	public boolean isIdentifierRollbackEnabled() {
+		// not yet implemented
+		return false;
 	}
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	//TODO: COPY/PASTE FROM SessionImpl, pull up!
 
@@ -1333,6 +1364,69 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 	protected void removeCacheItem(Object ck, CollectionPersister persister) {
 		if ( persister.hasCache() ) {
 			persister.getCacheAccessStrategy().remove( this, ck );
+		}
+	}
+
+	@Override
+	public void lock(String entityName, Object child, LockOptions lockOptions) {
+		final EntityPersister persister = getEntityPersister( entityName, child );
+		persister.lock( persister.getIdentifier( child ), persister.getVersion( child ), child, lockOptions, this );
+		final EntityEntry entry = getPersistenceContextInternal().getEntry( child );
+		if ( entry == null ) {
+			throw new AssertionFailure( "no entry in temporary persistence context" );
+		}
+		LoaderHelper.upgradeLock( child, entry, lockOptions, this );
+	}
+
+	@Override
+	public Object loadFromSecondLevelCache(EntityPersister persister, EntityKey entityKey, Object instanceToLoad, LockMode lockMode) {
+		return CacheLoadHelper.loadFromSecondLevelCache( this, instanceToLoad, lockMode, persister, entityKey );
+	}
+
+	private static final class MultiLoadOptions implements MultiIdLoadOptions {
+		private final  LockOptions lockOptions;
+
+		private MultiLoadOptions() {
+			this.lockOptions = null;
+		}
+
+		private MultiLoadOptions(LockMode lockOptions) {
+			this.lockOptions = new LockOptions( lockOptions );
+		}
+
+		@Override
+		public boolean isSessionCheckingEnabled() {
+			return false;
+		}
+
+		@Override
+		public boolean isSecondLevelCacheCheckingEnabled() {
+			return true;
+		}
+
+		@Override
+		public Boolean getReadOnly(SessionImplementor session) {
+			return null;
+		}
+
+		@Override
+		public boolean isReturnOfDeletedEntitiesEnabled() {
+			return false;
+		}
+
+		@Override
+		public boolean isOrderReturnEnabled() {
+			return true;
+		}
+
+		@Override
+		public LockOptions getLockOptions() {
+			return lockOptions;
+		}
+
+		@Override
+		public Integer getBatchSize() {
+			return null;
 		}
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.orm.test.datasource;
@@ -52,7 +52,9 @@ public class DataSourceTest {
 		public void loggedEvent(Logger.Level level, String renderedMessage, Throwable thrown) {
 			if ( renderedMessage.contains( "Database info:" ) ) {
 				final String url = Environment.getProperties().getProperty( JdbcSettings.URL );
-				seen = renderedMessage.contains( split( ";", url )[0] );
+				final String firstUrlPart = split( "?", split( ";", url )[0])[0];
+				final String baseUrl = firstUrlPart.endsWith( "/" ) ? firstUrlPart.substring( 0, firstUrlPart.length() - 1 ) : firstUrlPart;
+				seen = renderedMessage.contains( baseUrl );
 			}
 		}
 	}

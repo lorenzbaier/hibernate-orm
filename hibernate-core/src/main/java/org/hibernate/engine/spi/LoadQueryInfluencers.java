@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.engine.spi;
@@ -131,22 +131,6 @@ public class LoadQueryInfluencers implements Serializable {
 	 */
 	public void setEnabledCascadingFetchProfile(CascadingFetchProfile enabledCascadingFetchProfile) {
 		this.enabledCascadingFetchProfile = enabledCascadingFetchProfile;
-	}
-
-	/**
-	 * @deprecated Use {@link #getEnabledCascadingFetchProfile} instead
-	 */
-	@Deprecated( since = "6.0" )
-	public String getInternalFetchProfile() {
-		return getEnabledCascadingFetchProfile().getLegacyName();
-	}
-
-	/**
-	 * @deprecated Use {@link #setEnabledCascadingFetchProfile} instead
-	 */
-	@Deprecated( since = "6.0" )
-	public void setInternalFetchProfile(String internalFetchProfile) {
-		setEnabledCascadingFetchProfile( CascadingFetchProfile.fromLegacyName( internalFetchProfile ) );
 	}
 
 

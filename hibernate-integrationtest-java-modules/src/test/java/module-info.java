@@ -1,9 +1,3 @@
-/*
- * Hibernate, Relational Persistence for Idiomatic Java
- *
- * License: GNU Lesser General Public License (LGPL), version 2.1 or later.
- * See the lgpl.txt file in the root directory or <http://www.gnu.org/licenses/lgpl-2.1.html>.
- */
 module org.hibernate.orm.integrationtest.java.module.test {
 
 	/*
@@ -18,6 +12,7 @@ module org.hibernate.orm.integrationtest.java.module.test {
 	// for modules in the current project.
 	// Everything should work fine when building from the command line, though.
 	requires org.hibernate.orm.core;
+	requires org.hibernate.orm.envers;
 
 	// Transitive dependencies that leak through the Hibernate ORM API
 	requires java.sql;

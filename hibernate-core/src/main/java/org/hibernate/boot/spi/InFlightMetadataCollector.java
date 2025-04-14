@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot.spi;
@@ -67,14 +67,20 @@ import jakarta.persistence.AttributeConverter;
 public interface InFlightMetadataCollector extends MetadataImplementor {
 	BootstrapContext getBootstrapContext();
 
-	SourceModelBuildingContext getSourceModelBuildingContext();
+	/**
+	 * @deprecated Use {@linkplain BootstrapContext#getModelsContext()} instead.
+	 */
+	@Deprecated
+	default SourceModelBuildingContext getSourceModelBuildingContext() {
+		return getBootstrapContext().getModelsContext();
+	}
 
 	default ClassDetailsRegistry getClassDetailsRegistry() {
-		return getSourceModelBuildingContext().getClassDetailsRegistry();
+		return getBootstrapContext().getModelsContext().getClassDetailsRegistry();
 	}
 
 	default AnnotationDescriptorRegistry getAnnotationDescriptorRegistry() {
-		return getSourceModelBuildingContext().getAnnotationDescriptorRegistry();
+		return getBootstrapContext().getModelsContext().getAnnotationDescriptorRegistry();
 	}
 
 	GlobalRegistrations getGlobalRegistrations();
@@ -261,7 +267,7 @@ public interface InFlightMetadataCollector extends MetadataImplementor {
 	 * @deprecated use {@link #getConverterRegistry()}
 	 */
 	@Deprecated(since = "6.2")
-	void addAttributeConverter(ConverterDescriptor descriptor);
+	void addAttributeConverter(ConverterDescriptor<?,?> descriptor);
 
 	/**
 	 * Apply an {@link AttributeConverter}
@@ -269,7 +275,7 @@ public interface InFlightMetadataCollector extends MetadataImplementor {
 	 * @deprecated use {@link #getConverterRegistry()}
 	 */
 	@Deprecated(since = "6.2")
-	void addAttributeConverter(Class<? extends AttributeConverter<?,?>> converterClass);
+	void addAttributeConverter(Class<? extends AttributeConverter<?, ?>> converterClass);
 
 	/**
 	 * @deprecated use {@link #getConverterRegistry()}

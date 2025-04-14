@@ -1,9 +1,10 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.cache.spi;
 
+import org.hibernate.Internal;
 import org.hibernate.internal.log.SubSystemLogging;
 
 import org.jboss.logging.BasicLogger;
@@ -27,6 +28,7 @@ import static org.jboss.logging.Logger.Level.WARN;
 		name = SecondLevelCacheLogger.LOGGER_NAME,
 		description = "Logging related to Hibernate second-level caching"
 )
+@Internal
 public interface SecondLevelCacheLogger extends BasicLogger {
 	String LOGGER_NAME = SubSystemLogging.BASE + ".cache";
 

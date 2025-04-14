@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -18,17 +18,17 @@ import org.hibernate.spi.NavigablePath;
 @SuppressWarnings("rawtypes")
 public class SqmTreatedCrossJoin extends SqmCrossJoin implements SqmTreatedJoin {
 	private final SqmCrossJoin wrappedPath;
-	private final EntityDomainType treatTarget;
+	private final SqmEntityDomainType treatTarget;
 
 	private SqmTreatedCrossJoin(
 			NavigablePath navigablePath,
 			SqmCrossJoin<?> wrappedPath,
-			EntityDomainType<?> treatTarget,
+			SqmEntityDomainType<?> treatTarget,
 			String alias) {
 		//noinspection unchecked
 		super(
 				navigablePath,
-				(EntityDomainType) wrappedPath.getReferencedPathSource().getSqmPathType(),
+				(SqmEntityDomainType) wrappedPath.getReferencedPathSource().getPathType(),
 				alias,
 				wrappedPath.getRoot()
 		);
@@ -57,13 +57,13 @@ public class SqmTreatedCrossJoin extends SqmCrossJoin implements SqmTreatedJoin 
 	}
 
 	@Override
-	public EntityDomainType getTreatTarget() {
+	public SqmEntityDomainType getTreatTarget() {
 		return treatTarget;
 	}
 
 	@Override
-	public EntityDomainType getModel() {
-		return getTreatTarget();
+	public SqmEntityDomainType getModel() {
+		return treatTarget;
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -80,7 +80,7 @@ public class SqmTreatedCrossJoin extends SqmCrossJoin implements SqmTreatedJoin 
 
 	@SuppressWarnings({ "rawtypes" })
 	@Override
-	public EntityDomainType getReferencedPathSource() {
+	public SqmEntityDomainType getReferencedPathSource() {
 		return treatTarget;
 	}
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate;
@@ -132,7 +132,7 @@ public class LockOptions implements FindOption, RefreshOption, Serializable {
 	 * @see #getTimeOut()
 	 * @deprecated use {@link LockMode#UPGRADE_SKIPLOCKED}
 	 */
-	@Deprecated
+	@Deprecated(since = "6.2", forRemoval = true)
 	public static final int SKIP_LOCKED = -2;
 
 	private final boolean immutable;
@@ -465,7 +465,7 @@ public class LockOptions implements FindOption, RefreshOption, Serializable {
 	 * @return {@code this} for method chaining
 	 *
 	 * @see org.hibernate.jpa.HibernateHints#HINT_FOLLOW_ON_LOCKING
-	 * @see org.hibernate.dialect.Dialect#useFollowOnLocking(String, QueryOptions)
+	 * @see org.hibernate.dialect.Dialect#useFollowOnLocking(String, org.hibernate.query.spi.QueryOptions)
 	 */
 	public LockOptions setFollowOnLocking(Boolean followOnLocking) {
 		if ( immutable ) {

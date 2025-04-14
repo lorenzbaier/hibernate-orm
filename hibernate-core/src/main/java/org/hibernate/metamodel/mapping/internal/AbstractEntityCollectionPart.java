@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.metamodel.mapping.internal;
@@ -340,7 +340,7 @@ public abstract class AbstractEntityCollectionPart implements EntityCollectionPa
 				creationContext.getSessionFactory()
 		);
 		// Make sure the association key's table is resolved in the table group
-		tableGroup.getTableReference( null, resolveFetchAssociationKey().getTable(), true );
+		tableGroup.getTableReference( null, resolveFetchAssociationKey().table(), true );
 		return tableGroup;
 	}
 

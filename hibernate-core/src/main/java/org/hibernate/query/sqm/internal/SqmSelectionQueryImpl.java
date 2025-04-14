@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.internal;
@@ -34,6 +34,8 @@ import org.hibernate.query.KeyedPage;
 import org.hibernate.query.Order;
 import org.hibernate.query.Page;
 import org.hibernate.query.QueryParameter;
+import org.hibernate.query.ResultListTransformer;
+import org.hibernate.query.TupleTransformer;
 import org.hibernate.query.criteria.internal.NamedCriteriaQueryMementoImpl;
 import org.hibernate.query.hql.internal.NamedHqlQueryMementoImpl;
 import org.hibernate.query.internal.DelegatingDomainQueryExecutionContext;
@@ -97,6 +99,9 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 	private final Class<?> resultType;
 	private final TupleMetadata tupleMetadata;
 
+	/**
+	 * Form used for HQL queries
+	 */
 	public SqmSelectionQueryImpl(
 			String hql,
 			HqlInterpretation<R> hqlInterpretation,
@@ -112,7 +117,6 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		this.domainParameterXref = hqlInterpretation.getDomainParameterXref();
 		this.parameterBindings = parameterMetadata.createBindings( session.getFactory() );
 
-
 		this.expectedResultType = expectedResultType;
 		this.resultType = determineResultType( sqm, expectedResultType );
 		this.tupleMetadata = buildTupleMetadata( sqm, expectedResultType );
@@ -121,29 +125,38 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		setComment( hql );
 	}
 
+	/**
+	 * Creates a {@link org.hibernate.query.SelectionQuery}
+	 * instance from a named HQL memento.
+	 * Form used from {@link NamedHqlQueryMementoImpl}.
+	 */
 	public SqmSelectionQueryImpl(
 			NamedHqlQueryMementoImpl<?> memento,
 			Class<R> resultType,
 			SharedSessionContractImplementor session) {
-		this(
-				memento.getHqlString(),
+		this( memento.getHqlString(),
 				interpretation( memento, resultType, session ),
-				resultType,
-				session
-		);
-
-		applyOptions( memento );
+				resultType, session );
+		applySqmOptions( memento );
 	}
 
+	/**
+	 * Creates a {@link org.hibernate.query.SelectionQuery}
+	 * instance from a named criteria query memento.
+	 * Form used from {@link NamedCriteriaQueryMementoImpl}
+	 */
 	public SqmSelectionQueryImpl(
 			NamedCriteriaQueryMementoImpl<?> memento,
+			SqmSelectStatement<R> selectStatement,
 			Class<R> expectedResultType,
 			SharedSessionContractImplementor session) {
-		//noinspection unchecked
-		this( (SqmSelectStatement<R>) memento.getSqmStatement(), expectedResultType, session );
-		applyOptions( memento );
+		this( selectStatement, expectedResultType, session );
+		applySqmOptions( memento );
 	}
 
+	/**
+	 * Form used for criteria queries
+	 */
 	public SqmSelectionQueryImpl(
 			SqmSelectStatement<R> criteria,
 			Class<R> expectedResultType,
@@ -169,8 +182,8 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 
 		// Parameters might be created through HibernateCriteriaBuilder.value which we need to bind here
 		for ( SqmParameter<?> sqmParameter : domainParameterXref.getParameterResolutions().getSqmParameters() ) {
-			if ( sqmParameter instanceof SqmJpaCriteriaParameterWrapper<?> ) {
-				bindCriteriaParameter( (SqmJpaCriteriaParameterWrapper<?>) sqmParameter );
+			if ( sqmParameter instanceof SqmJpaCriteriaParameterWrapper<?> wrapper ) {
+				bindCriteriaParameter( wrapper );
 			}
 		}
 
@@ -195,15 +208,17 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		final List<Order<? super E>> keyDefinition = keyedPage.getKeyDefinition();
 		final List<Order<? super E>> appliedKeyDefinition =
 				keyedPage.getKeyInterpretation() == KEY_OF_FIRST_ON_NEXT_PAGE
-						? Order.reverse( keyDefinition ) : keyDefinition;
+						? Order.reverse( keyDefinition )
+						: keyDefinition;
 
 		//noinspection unchecked
 		sqm = (SqmSelectStatement<R>) paginate(
 				appliedKeyDefinition,
 				key,
 				// Change the query source to CRITERIA, because we will change the query and introduce parameters
-				(SqmSelectStatement<KeyedResult<E>>) original.getSqmStatement()
-						.copy( noParamCopyContext( SqmQuerySource.CRITERIA ) ),
+				(SqmSelectStatement<KeyedResult<E>>)
+						original.getSqmStatement()
+								.copy( noParamCopyContext( SqmQuerySource.CRITERIA ) ),
 				original.getSqmStatement().nodeBuilder()
 		);
 		hql = CRITERIA_HQL_STRING;
@@ -237,14 +252,12 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 
 	private <T> void setBindValues(QueryParameter<?> parameter, QueryParameterBinding<T> binding) {
 		final QueryParameterBinding<T> parameterBinding = parameterBindings.getBinding( binding.getQueryParameter() );
+		@SuppressWarnings("deprecation")
 		final TemporalType explicitTemporalPrecision = binding.getExplicitTemporalPrecision();
 		if ( explicitTemporalPrecision != null ) {
 			if ( binding.isMultiValued() ) {
-				parameterBinding.setBindValues(
-						binding.getBindValues(),
-						explicitTemporalPrecision,
-						getSessionFactory().getTypeConfiguration()
-				);
+				parameterBinding.setBindValues( binding.getBindValues(), explicitTemporalPrecision,
+						getSessionFactory().getTypeConfiguration() );
 			}
 			else {
 				parameterBinding.setBindValue( binding.getBindValue(), explicitTemporalPrecision );
@@ -284,8 +297,9 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 			}
 		}
 		else if ( expectedResultType != null ) {
-			// assume we can repackage the tuple as
-			// the given type (worry about how later)
+			// assume we can repackage the tuple as the given type - worry
+			// about how later (it's handled using a RowTransformer which is
+			// set up in ConcreteSqmSelectQueryPlan.determineRowTransformer)
 			return expectedResultType;
 		}
 		else {
@@ -340,6 +354,19 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 	@Override
 	public String getQueryString() {
 		return hql;
+	}
+
+	@Override
+	public <T> SqmSelectionQuery<T> setTupleTransformer(TupleTransformer<T> transformer) {
+		getQueryOptions().setTupleTransformer( transformer );
+		//noinspection unchecked
+		return (SqmSelectionQuery<T>) this;
+	}
+
+	@Override
+	public SqmSelectionQuery<R> setResultListTransformer(ResultListTransformer<R> transformer) {
+		getQueryOptions().setResultListTransformer( transformer );
+		return this;
 	}
 
 	// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -656,7 +683,7 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(String name, Instant value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
@@ -680,7 +707,7 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(int position, Instant value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;
@@ -710,37 +737,37 @@ public class SqmSelectionQueryImpl<R> extends AbstractSqmSelectionQuery<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(Parameter<Calendar> param, Calendar value, TemporalType temporalType) {
 		super.setParameter( param, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(Parameter<Date> param, Date value, TemporalType temporalType) {
 		super.setParameter( param, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(String name, Calendar value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(String name, Date value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(int position, Calendar value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmSelectionQuery<R> setParameter(int position, Date value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;

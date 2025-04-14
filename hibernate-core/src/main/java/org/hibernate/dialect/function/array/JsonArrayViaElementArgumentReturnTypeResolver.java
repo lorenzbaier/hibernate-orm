@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect.function.array;
@@ -81,7 +81,7 @@ public class JsonArrayViaElementArgumentReturnTypeResolver implements FunctionRe
 
 	@AllowReflection
 	public static <T> BasicType<?> resolveJsonArrayType(DomainType<T> elementType, TypeConfiguration typeConfiguration) {
-		final Class<?> arrayClass = Array.newInstance( elementType.getBindableJavaType(), 0 ).getClass();
+		final Class<?> arrayClass = Array.newInstance( elementType.getJavaType(), 0 ).getClass();
 		@SuppressWarnings("unchecked")
 		final BasicPluralJavaType<T> arrayJavaType =
 				(BasicPluralJavaType<T>)

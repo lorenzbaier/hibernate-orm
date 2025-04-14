@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.internal;
@@ -49,6 +49,7 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.engine.transaction.internal.TransactionImpl;
 import org.hibernate.event.monitor.spi.EventMonitor;
+import org.hibernate.graph.GraphSemantic;
 import org.hibernate.graph.RootGraph;
 import org.hibernate.graph.internal.RootGraphImpl;
 import org.hibernate.graph.spi.RootGraphImplementor;
@@ -295,14 +296,9 @@ public abstract class AbstractSharedSessionContract implements SharedSessionCont
 	private static SessionEventListenerManager createSessionEventsManager(
 			SessionFactoryOptions factoryOptions, SessionCreationOptions options) {
 		final List<SessionEventListener> customListeners = options.getCustomSessionEventListener();
-		if ( customListeners == null ) {
-			final SessionEventListener[] baseline =
-					factoryOptions.getBaselineSessionEventsListenerBuilder().buildBaseline();
-			return new SessionEventListenerManagerImpl( baseline );
-		}
-		else {
-			return new SessionEventListenerManagerImpl( customListeners );
-		}
+		return customListeners == null
+				? new SessionEventListenerManagerImpl( factoryOptions.buildSessionEventListeners() )
+				: new SessionEventListenerManagerImpl( customListeners );
 	}
 
 	/**
@@ -875,6 +871,13 @@ public abstract class AbstractSharedSessionContract implements SharedSessionCont
 	@Override
 	public <R> SelectionQuery<R> createSelectionQuery(String hqlString, Class<R> expectedResultType) {
 		return interpretAndCreateSelectionQuery( hqlString, expectedResultType );
+	}
+
+	@Override
+	public <R> SelectionQuery<R> createSelectionQuery(String hqlString, EntityGraph<R> resultGraph) {
+		final RootGraph<R> rootGraph = (RootGraph<R>) resultGraph;
+		return interpretAndCreateSelectionQuery( hqlString, rootGraph.getGraphedType().getJavaType() )
+				.setEntityGraph( resultGraph, GraphSemantic.LOAD );
 	}
 
 
@@ -1633,9 +1636,7 @@ public abstract class AbstractSharedSessionContract implements SharedSessionCont
 		jdbcServices = factory.getJdbcServices();
 
 		//TODO: this isn't quite right, see createSessionEventsManager()
-		final SessionEventListener[] baseline =
-				factoryOptions.getBaselineSessionEventsListenerBuilder()
-						.buildBaseline();
+		final SessionEventListener[] baseline = factoryOptions.buildSessionEventListeners();
 		sessionEventsManager = new SessionEventListenerManagerImpl( baseline );
 
 		jdbcSessionContext = createJdbcSessionContext( (StatementInspector) ois.readObject() );

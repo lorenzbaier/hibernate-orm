@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -28,7 +28,8 @@ public class SqmElementAggregateFunction<T> extends AbstractSqmSpecificPluralPar
 				pluralDomainPath.getNavigablePath().getParent().append( pluralDomainPath.getNavigablePath().getLocalName(), "{" + functionName + "-element}" ),
 				pluralDomainPath,
 				(PluralPersistentAttribute<?, ?, ?>) pluralDomainPath.getReferencedPathSource(),
-				( (PluralPersistentAttribute<?, ?, T>) pluralDomainPath.getReferencedPathSource() ).getElementPathSource()
+				( (SqmPluralPersistentAttribute<?, ?, T>) pluralDomainPath.getReferencedPathSource() )
+						.getElementPathSource()
 		);
 		this.functionName = functionName;
 		switch ( functionName ) {
@@ -60,7 +61,7 @@ public class SqmElementAggregateFunction<T> extends AbstractSqmSpecificPluralPar
 
 	@Override
 	public SqmExpressible<T> getExpressible() {
-		return returnableType == null ? super.getExpressible() : returnableType;
+		return returnableType == null ? super.getExpressible() : returnableType.resolveExpressible( nodeBuilder() );
 	}
 
 	@Override

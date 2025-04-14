@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.type.descriptor.java;
@@ -24,6 +24,8 @@ import org.hibernate.type.descriptor.converter.spi.BasicValueConverter;
 import org.hibernate.type.descriptor.jdbc.JdbcTypeIndicators;
 import org.hibernate.type.spi.TypeConfiguration;
 
+import static org.hibernate.internal.util.ReflectHelper.arrayClass;
+
 /**
  * Descriptor for {@code T[]} handling.
  *
@@ -38,11 +40,9 @@ public class ArrayJavaType<T> extends AbstractArrayJavaType<T[], T> {
 	}
 
 	public ArrayJavaType(JavaType<T> baseDescriptor) {
-		super(
-				(Class<T[]>) Array.newInstance( baseDescriptor.getJavaTypeClass(), 0 ).getClass(),
+		super( arrayClass( baseDescriptor.getJavaTypeClass() ),
 				baseDescriptor,
-				new ArrayMutabilityPlan<>( baseDescriptor )
-		);
+				new ArrayMutabilityPlan<>( baseDescriptor ) );
 	}
 
 	@Override

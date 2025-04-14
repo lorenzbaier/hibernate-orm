@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tuple.internal;
@@ -15,6 +15,7 @@ import org.hibernate.query.sqm.tree.domain.SqmBasicValuedSimplePath;
 import org.hibernate.query.sqm.tree.domain.SqmEmbeddedValuedSimplePath;
 import org.hibernate.query.sqm.tree.domain.SqmEntityValuedSimplePath;
 import org.hibernate.query.sqm.tree.domain.SqmPath;
+import org.hibernate.query.sqm.tree.domain.SqmDomainType;
 import org.hibernate.type.descriptor.java.JavaType;
 
 /**
@@ -25,9 +26,7 @@ public class AnonymousTupleSqmPathSource<J> implements SqmPathSource<J> {
 	private final String localPathName;
 	private final SqmPath<J> path;
 
-	public AnonymousTupleSqmPathSource(
-			String localPathName,
-			SqmPath<J> path) {
+	public AnonymousTupleSqmPathSource(String localPathName, SqmPath<J> path) {
 		this.localPathName = localPathName;
 		this.path = path;
 	}
@@ -43,8 +42,8 @@ public class AnonymousTupleSqmPathSource<J> implements SqmPathSource<J> {
 	}
 
 	@Override
-	public DomainType<J> getSqmPathType() {
-		return path.getNodeType().getSqmPathType();
+	public SqmDomainType<J> getPathType() {
+		return path.getNodeType().getPathType();
 	}
 
 	@Override
@@ -64,7 +63,7 @@ public class AnonymousTupleSqmPathSource<J> implements SqmPathSource<J> {
 
 	@Override
 	public SqmPath<J> createSqmPath(SqmPath<?> lhs, SqmPathSource<?> intermediatePathSource) {
-		final DomainType<?> domainType = path.getNodeType().getSqmPathType();
+		final DomainType<?> domainType = path.getNodeType().getPathType();
 		if ( domainType instanceof BasicDomainType<?> ) {
 			return new SqmBasicValuedSimplePath<>(
 					PathHelper.append( lhs, this, intermediatePathSource ),

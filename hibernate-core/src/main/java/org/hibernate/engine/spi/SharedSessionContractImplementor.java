@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.engine.spi;
@@ -12,7 +12,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import org.hibernate.FlushMode;
 import org.hibernate.HibernateException;
+import org.hibernate.Incubating;
 import org.hibernate.Interceptor;
+import org.hibernate.LockMode;
+import org.hibernate.LockOptions;
 import org.hibernate.StatelessSession;
 import org.hibernate.boot.spi.SessionFactoryOptions;
 import org.hibernate.dialect.Dialect;
@@ -268,15 +271,6 @@ public interface SharedSessionContractImplementor
 	Interceptor getInterceptor();
 
 	/**
-	 * Enable or disable automatic cache clearing from after transaction
-	 * completion.
-	 *
-	 * @deprecated there's no good reason to expose this here
-	 */
-	@Deprecated(since = "6")
-	void setAutoClear(boolean enabled);
-
-	/**
 	 * Initialize the given collection (if not already initialized).
 	 */
 	void initializeCollection(PersistentCollection<?> collection, boolean writing)
@@ -353,7 +347,10 @@ public interface SharedSessionContractImplementor
 
 	/**
 	 * Instantiate the entity class, initializing with the given identifier.
+	 *
+	 * @deprecated No longer used, replaced by {@link #instantiate(EntityPersister, Object)}
 	 */
+	@Deprecated(since = "7", forRemoval = true)
 	Object instantiate(String entityName, Object id) throws HibernateException;
 
 	/**
@@ -370,6 +367,8 @@ public interface SharedSessionContractImplementor
 	 * Are entities and proxies loaded by this session read-only by default?
 	 */
 	boolean isDefaultReadOnly();
+
+	boolean isIdentifierRollbackEnabled();
 
 	void setCriteriaCopyTreeEnabled(boolean jpaCriteriaCopyComplianceEnabled);
 
@@ -581,4 +580,23 @@ public interface SharedSessionContractImplementor
 		return false;
 	}
 
+	/**
+	 * Cascade the lock operation to the given child entity.
+	 */
+	void lock(String entityName, Object child, LockOptions lockOptions);
+
+	/**
+	 * Attempts to load the entity from the second-level cache.
+	 *
+	 * @param persister The persister for the entity being requested for load
+	 * @param entityKey The entity key
+	 * @param instanceToLoad The instance that is being initialized, or null
+	 * @param lockMode The lock mode
+	 *
+	 * @return The entity from the second-level cache, or null.
+	 *
+	 * @since 7.0
+	 */
+	@Incubating
+	Object loadFromSecondLevelCache(EntityPersister persister, EntityKey entityKey, Object instanceToLoad, LockMode lockMode);
 }

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.orm.test.stateless;
@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.hibernate.LockMode.PESSIMISTIC_READ;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -36,6 +37,13 @@ public class GetMultipleTest {
 			assertEquals("hello mars",all.get(2).message);
 			assertNull(all.get(1));
 		});
+		scope.inStatelessTransaction(s-> {
+			List<Record> all = s.getMultiple(Record.class, List.of(456L, 123L, 2L), PESSIMISTIC_READ);
+			assertEquals("hello mars",all.get(0).message);
+			assertEquals("hello earth",all.get(1).message);
+			assertNull(all.get(2));
+		});
+
 	}
 	@Entity
 	static class Record {

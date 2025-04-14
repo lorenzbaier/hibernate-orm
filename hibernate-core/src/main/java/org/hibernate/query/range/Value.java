@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.range;
@@ -8,6 +8,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
+import org.hibernate.internal.util.ReflectHelper;
 
 import java.util.Objects;
 
@@ -31,8 +32,8 @@ record Value<U>(U value) implements Range<U> {
 		return path.equalTo( literal );
 	}
 
-	@Override @SuppressWarnings("unchecked")
+	@Override
 	public Class<? extends U> getType() {
-		return (Class<? extends U>) value.getClass();
+		return ReflectHelper.getClass( value.getClass() );
 	}
 }

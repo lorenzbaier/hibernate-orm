@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.internal;
@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -93,6 +92,7 @@ import jakarta.persistence.PersistenceException;
 import jakarta.persistence.TemporalType;
 import org.hibernate.sql.results.spi.SingleResultConsumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hibernate.jpa.HibernateHints.HINT_CACHEABLE;
 import static org.hibernate.jpa.HibernateHints.HINT_CACHE_MODE;
 import static org.hibernate.jpa.HibernateHints.HINT_CACHE_REGION;
@@ -132,28 +132,32 @@ public class QuerySqmImpl<R>
 	private final TupleMetadata tupleMetadata;
 
 	/**
-	 * Creates a Query instance from a named HQL memento
+	 * Creates a {@link org.hibernate.query.Query}
+	 * instance from a named HQL memento.
+	 * Form used from {@link NamedHqlQueryMementoImpl}.
 	 */
 	public QuerySqmImpl(
-			NamedHqlQueryMementoImpl<?> memento,
+			NamedSqmQueryMemento<?> memento,
 			Class<R> expectedResultType,
 			SharedSessionContractImplementor session) {
-		this(
-				memento.getHqlString(),
+		this( memento.getHqlString(),
 				interpretation( memento, expectedResultType, session ),
-				expectedResultType,
-				session
-		);
-		applyOptions( memento );
+				expectedResultType, session );
+		applySqmOptions( memento );
 	}
 
+	/**
+	 * Creates a {@link org.hibernate.query.Query}
+	 * instance from a named criteria query memento.
+	 * Form used from {@link NamedCriteriaQueryMementoImpl}
+	 */
 	public QuerySqmImpl(
-			NamedCriteriaQueryMementoImpl<?> memento,
+			NamedSqmQueryMemento<?> memento,
+			SqmStatement<R> statement,
 			Class<R> resultType,
 			SharedSessionContractImplementor session) {
-		this( (SqmStatement<R>) memento.getSqmStatement(), resultType, session );
-
-		applyOptions( memento );
+		this( statement, resultType, session );
+		applySqmOptions( memento );
 	}
 
 	/**
@@ -177,10 +181,8 @@ public class QuerySqmImpl<R>
 		if ( sqm instanceof SqmSelectStatement<?> ) {
 			hqlInterpretation.validateResultType( resultType );
 		}
-		else {
-			if ( resultType != null ) {
-				throw new IllegalQueryOperationException( "Result type given for a non-SELECT Query", hql, null );
-			}
+		else if ( resultType != null ) {
+			throw new IllegalQueryOperationException( "Result type given for a non-SELECT Query", hql, null );
 		}
 		setComment( hql );
 
@@ -810,7 +812,7 @@ public class QuerySqmImpl<R>
 	}
 
 	@Override
-	public Query<R> setEntityGraph(EntityGraph<R> graph, GraphSemantic semantic) {
+	public Query<R> setEntityGraph(EntityGraph<? super R> graph, GraphSemantic semantic) {
 		super.setEntityGraph( graph, semantic );
 		return this;
 	}
@@ -882,18 +884,12 @@ public class QuerySqmImpl<R>
 	@Override
 	public NamedSqmQueryMemento<R> toMemento(String name) {
 		if ( CRITERIA_HQL_STRING.equals( getQueryString() ) ) {
-			final SqmStatement<R> sqmStatement;
-			if ( !getSession().isCriteriaCopyTreeEnabled() ) {
-				sqmStatement = getSqmStatement().copy( SqmCopyContext.simpleContext() );
-			}
-			else {
-				// the statement has already been copied
-				sqmStatement = getSqmStatement();
-			}
 			return new NamedCriteriaQueryMementoImpl<>(
 					name,
 					getResultType(),
-					sqmStatement,
+					getSession().isCriteriaCopyTreeEnabled()
+							? getSqmStatement() // the statement has already been copied
+							: getSqmStatement().copy( SqmCopyContext.simpleContext() ),
 					getQueryOptions().getLimit().getFirstRow(),
 					getQueryOptions().getLimit().getMaxRows(),
 					isCacheable(),
@@ -905,62 +901,66 @@ public class QuerySqmImpl<R>
 					getTimeout(),
 					getFetchSize(),
 					getComment(),
-					Collections.emptyMap(),
+					emptyMap(),
 					getHints()
 			);
 		}
-
-		return new NamedHqlQueryMementoImpl<>(
-				name,
-				getResultType(),
-				getQueryString(),
-				getQueryOptions().getLimit().getFirstRow(),
-				getQueryOptions().getLimit().getMaxRows(),
-				isCacheable(),
-				getCacheRegion(),
-				getCacheMode(),
-				getQueryOptions().getFlushMode(),
-				isReadOnly(),
-				getLockOptions(),
-				getTimeout(),
-				getFetchSize(),
-				getComment(),
-				Collections.emptyMap(),
-				getHints()
-		);
+		else {
+			return new NamedHqlQueryMementoImpl<>(
+					name,
+					getResultType(),
+					getQueryString(),
+					getQueryOptions().getLimit().getFirstRow(),
+					getQueryOptions().getLimit().getMaxRows(),
+					isCacheable(),
+					getCacheRegion(),
+					getCacheMode(),
+					getQueryOptions().getFlushMode(),
+					isReadOnly(),
+					getLockOptions(),
+					getTimeout(),
+					getFetchSize(),
+					getComment(),
+					emptyMap(),
+					getHints()
+			);
+		}
 	}
 
 
 	// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// unwrap
 
-	@SuppressWarnings("unchecked")
-	public <T> T unwrap(Class<T> cls) {
-		if ( cls.isInstance( this ) ) {
-			return (T) this;
+	public <T> T unwrap(Class<T> type) {
+		if ( type.isInstance( this ) ) {
+			return type.cast( this );
 		}
 
-		if ( cls.isInstance( parameterMetadata ) ) {
-			return (T) parameterMetadata;
+		if ( type.isInstance( parameterMetadata ) ) {
+			return type.cast( parameterMetadata );
 		}
 
-		if ( cls.isInstance( parameterBindings ) ) {
-			return (T) parameterBindings;
+		if ( type.isInstance( parameterBindings ) ) {
+			return type.cast( parameterBindings );
 		}
 
-		if ( cls.isInstance( sqm ) ) {
-			return (T) sqm;
+		if ( type.isInstance( sqm ) ) {
+			return type.cast( sqm );
 		}
 
-		if ( cls.isInstance( getQueryOptions() ) ) {
-			return (T) getQueryOptions();
+		if ( type.isInstance( getQueryOptions() ) ) {
+			return type.cast( getQueryOptions() );
 		}
 
-		if ( cls.isInstance( getQueryOptions().getAppliedGraph() ) ) {
-			return (T) getQueryOptions().getAppliedGraph();
+		if ( type.isInstance( getQueryOptions().getAppliedGraph() ) ) {
+			return type.cast( getQueryOptions().getAppliedGraph() );
 		}
 
-		throw new PersistenceException( "Unrecognized unwrap type [" + cls.getName() + "]" );
+		if ( type.isInstance( getSession() ) ) {
+			return type.cast( getSession() );
+		}
+
+		throw new PersistenceException( "Unrecognized unwrap type [" + type.getName() + "]" );
 	}
 
 
@@ -1067,7 +1067,7 @@ public class QuerySqmImpl<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(String name, Instant value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
@@ -1091,7 +1091,7 @@ public class QuerySqmImpl<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(int position, Instant value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;
@@ -1121,37 +1121,37 @@ public class QuerySqmImpl<R>
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(Parameter<Calendar> param, Calendar value, TemporalType temporalType) {
 		super.setParameter( param, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(Parameter<Date> param, Date value, TemporalType temporalType) {
 		super.setParameter( param, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(String name, Calendar value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(String name, Date value, TemporalType temporalType) {
 		super.setParameter( name, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(int position, Calendar value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;
 	}
 
-	@Override
+	@Override @Deprecated
 	public SqmQueryImplementor<R> setParameter(int position, Date value, TemporalType temporalType) {
 		super.setParameter( position, value, temporalType );
 		return this;

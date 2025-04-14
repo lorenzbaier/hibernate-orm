@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.processor;
@@ -234,9 +234,9 @@ public class HibernateProcessor extends AbstractProcessor {
 		final PackageElement jakartaContextPackage =
 				context.getProcessingEnvironment().getElementUtils()
 						.getPackageElement( "jakarta.enterprise.context" );
-		final PackageElement jakartaTransactionsPackage =
+		final PackageElement jakartaTransactionPackage =
 				context.getProcessingEnvironment().getElementUtils()
-						.getPackageElement( "jakarta.transactions" );
+						.getPackageElement( "jakarta.transaction" );
 		final PackageElement jakartaDataPackage =
 				context.getProcessingEnvironment().getElementUtils()
 						.getPackageElement( "jakarta.data" );
@@ -267,7 +267,7 @@ public class HibernateProcessor extends AbstractProcessor {
 		context.setAddNonnullAnnotation( packagePresent(jakartaAnnotationPackage) );
 		context.setAddGeneratedAnnotation( packagePresent(jakartaAnnotationPackage) );
 		context.setAddDependentAnnotation( packagePresent(jakartaContextPackage) );
-		context.setAddTransactionScopedAnnotation( packagePresent(jakartaTransactionsPackage) );
+		context.setAddTransactionScopedAnnotation( packagePresent(jakartaTransactionPackage) );
 		context.setDataEventPackageAvailable( packagePresent(dataEventPackage) );
 		context.setQuarkusInjection( packagePresent(quarkusOrmPackage) );
 		context.setUsesQuarkusOrm( packagePresent(quarkusOrmPanachePackage) );

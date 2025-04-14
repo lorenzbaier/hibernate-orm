@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.persister.entity;
@@ -337,11 +337,6 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 	@Override
 	public String getAttributeMutationTableName(int i) {
 		return getTableName();//ie. the subquery! yuck!
-	}
-
-	@Override
-	public int getSubclassPropertyTableNumber(String propertyName) {
-		return 0;
 	}
 
 	@Override

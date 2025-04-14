@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.persister.entity;
@@ -121,7 +121,7 @@ public class DiscriminatorHelper {
 			SqmPathSource<T> domainType, NodeBuilder nodeBuilder) {
 		final SqmPathSource<?> subPathSource = domainType.findSubPathSource( DISCRIMINATOR_ROLE_NAME );
 		final SqmExpressible<?> type = subPathSource != null
-				? subPathSource.getSqmPathType()
+				? subPathSource.getPathType()
 				: nodeBuilder.getTypeConfiguration().getBasicTypeRegistry().resolve( StandardBasicTypes.CLASS );
 		//noinspection unchecked
 		return (SqmExpressible<? super T>) type;

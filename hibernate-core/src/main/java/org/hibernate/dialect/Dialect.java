@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect;
@@ -211,6 +211,7 @@ import static org.hibernate.cfg.AvailableSettings.NON_CONTEXTUAL_LOB_CREATION;
 import static org.hibernate.cfg.AvailableSettings.STATEMENT_BATCH_SIZE;
 import static org.hibernate.cfg.AvailableSettings.USE_GET_GENERATED_KEYS;
 import static org.hibernate.internal.util.MathHelper.ceilingPowerOfTwo;
+import static org.hibernate.internal.util.StringHelper.isBlank;
 import static org.hibernate.internal.util.StringHelper.isEmpty;
 import static org.hibernate.internal.util.StringHelper.splitAtCommas;
 import static org.hibernate.internal.util.collections.ArrayHelper.EMPTY_STRING_ARRAY;
@@ -2269,8 +2270,8 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	 * @return The appropriate {@code LOCK} clause string.
 	 */
 	public String getWriteLockString(String aliases, int timeout) {
-		// by default we simply return the getWriteLockString(timeout) result since
-		// the default is to say no support for "FOR UPDATE OF ..."
+		// by default, we simply return getWriteLockString(timeout),
+		// since the default is no support for "FOR UPDATE OF ..."
 		return getWriteLockString( timeout );
 	}
 
@@ -3561,7 +3562,10 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	/**
 	 * The sort of {@linkplain TempTableDdlTransactionHandling transaction handling}
 	 * to use when creating or dropping temporary tables.
+	 *
+	 * @deprecated No dialect currently overrides this, so it's obsolete
 	 */
+	@Deprecated(since = "7.0")
 	public TempTableDdlTransactionHandling getTemporaryTableDdlTransactionHandling() {
 		return TempTableDdlTransactionHandling.NONE;
 	}
@@ -3653,7 +3657,12 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	 * make use of the Java 1.7 {@link Connection#getSchema()} method.
 	 *
 	 * @return The current schema retrieval SQL
+	 *
+	 * @deprecated Since Hibernate now baselines on Java 17,
+	 * {@link Connection#getSchema()} is always available directly.
+	 * Never used internally.
 	 */
+	@Deprecated
 	public String getCurrentSchemaCommand() {
 		return null;
 	}
@@ -4156,7 +4165,7 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	 *         {@code false} (the default) indicates that locking
 	 *                      should be applied to the main SQL statement.
 	 *
-	 * @since 5.2
+	 * @since 6.0
 	 */
 	public boolean useFollowOnLocking(String sql, QueryOptions queryOptions) {
 		return false;
@@ -5835,7 +5844,7 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	 */
 	public String getCheckConstraintString(CheckConstraint checkConstraint) {
 		final String constraintName = checkConstraint.getName();
-		final String constraint = constraintName == null
+		final String constraint = isBlank( constraintName )
 				? " check (" + checkConstraint.getConstraint() + ")"
 				: " constraint " + constraintName + " check (" + checkConstraint.getConstraint() + ")";
 		return appendCheckConstraintOptions( checkConstraint, constraint );
@@ -5882,6 +5891,182 @@ public abstract class Dialect implements ConversionContext, TypeContributor, Fun
 	 */
 	public boolean supportsBindingNullForSetObject() {
 		return false;
+	}
+
+	/**
+	 * Whether the FILTER clause for aggregate functions is supported.
+	 */
+	public boolean supportsFilterClause() {
+		// By default, we report false because not many dialects support this
+		return false;
+	}
+
+	/**
+	 * Whether the SQL row constructor is supported.
+	 */
+	public boolean supportsRowConstructor() {
+		return false;
+	}
+
+	/**
+	 * Whether the SQL array constructor is supported.
+	 */
+	public boolean supportsArrayConstructor() {
+		return false;
+	}
+
+	public boolean supportsDuplicateSelectItemsInQueryGroup() {
+		return true;
+	}
+
+	public boolean supportsIntersect() {
+		return true;
+	}
+
+	/**
+	 * If the dialect supports using joins in mutation statement subquery
+	 * that could also use columns from the mutation target table
+	 */
+	public boolean supportsJoinInMutationStatementSubquery() {
+		return true;
+	}
+
+	public boolean supportsJoinsInDelete() {
+		return false;
+	}
+
+	public boolean supportsNestedSubqueryCorrelation() {
+		return true;
+	}
+
+	/**
+	 * Whether the SQL cycle clause is supported, which can be used for recursive CTEs.
+	 */
+	public boolean supportsRecursiveCycleClause() {
+		return false;
+	}
+
+	/**
+	 * Whether the SQL cycle clause supports the using sub-clause.
+	 */
+	public boolean supportsRecursiveCycleUsingClause() {
+		return false;
+	}
+
+	/**
+	 * Whether the SQL search clause is supported, which can be used for recursive CTEs.
+	 */
+	public boolean supportsRecursiveSearchClause() {
+		return false;
+	}
+
+	public boolean supportsSimpleQueryGrouping() {
+		return true;
+	}
+
+	/**
+	 * Is this dialect known to support what ANSI-SQL terms "row value
+	 * constructor" syntax; sometimes called tuple syntax.
+	 * <p>
+	 * Basically, does it support syntax like
+	 * {@code ... where (FIRST_NAME, LAST_NAME) = ('Steve', 'Ebersole') ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorSyntax() {
+		return true;
+	}
+
+	/**
+	 * Is this dialect known to support what ANSI-SQL terms "row value
+	 * constructor" syntax; sometimes called tuple syntax with <code>&lt;</code>, <code>&gt;</code>, <code>&le;</code>
+	 * and <code>&ge;</code> operators.
+	 * <p>
+	 * Basically, does it support syntax like
+	 * {@code ... where (FIRST_NAME, LAST_NAME) &lt; ('Steve', 'Ebersole') ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax with relational comparison operators; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorGtLtSyntax() {
+		return supportsRowValueConstructorSyntax();
+	}
+
+	/**
+	 * Is this dialect known to support what ANSI-SQL terms "row value
+	 * constructor" syntax; sometimes called tuple syntax with <code>is distinct from</code>
+	 * and <code>is not distinct from</code> operators.
+	 * <p>
+	 * Basically, does it support syntax like
+	 * {@code ... where (FIRST_NAME, LAST_NAME) is distinct from ('Steve', 'Ebersole') ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax with distinct from comparison operators; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorDistinctFromSyntax() {
+		return supportsRowValueConstructorSyntax() && supportsDistinctFromPredicate();
+	}
+
+	/**
+	 * Whether the SQL with clause is supported.
+	 */
+	public boolean supportsWithClause() {
+		return true;
+	}
+
+	/**
+	 * Whether the SQL with clause is supported within a subquery.
+	 */
+	public boolean supportsWithClauseInSubquery() {
+		return supportsWithClause();
+	}
+
+	/**
+	 * Whether the SQL with clause is supported within a CTE.
+	 */
+	public boolean supportsNestedWithClause() {
+		return supportsWithClauseInSubquery();
+	}
+
+	/**
+	 * Is this dialect known to support what ANSI-SQL terms "row value
+	 * constructor" syntax; sometimes called tuple syntax with quantified predicates.
+	 * <p>
+	 * Basically, does it support syntax like
+	 * {@code ... where (FIRST_NAME, LAST_NAME) = ALL (select ...) ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax with quantified predicates; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorSyntaxInQuantifiedPredicates() {
+		return true;
+	}
+
+	/**
+	 * If the dialect supports {@link org.hibernate.dialect.Dialect#supportsRowValueConstructorSyntax() row values},
+	 * does it offer such support in IN lists as well?
+	 * <p>
+	 * For example, {@code ... where (FIRST_NAME, LAST_NAME) IN ( (?, ?), (?, ?) ) ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax in the IN list; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorSyntaxInInList() {
+		return true;
+	}
+
+	/**
+	 * If the dialect supports {@link org.hibernate.dialect.Dialect#supportsRowValueConstructorSyntax() row values},
+	 * does it offer such support in IN subqueries as well?
+	 * <p>
+	 * For example, {@code ... where (FIRST_NAME, LAST_NAME) IN ( select ... ) ...}
+	 *
+	 * @return True if this SQL dialect is known to support "row value
+	 * constructor" syntax in the IN subqueries; false otherwise.
+	 */
+	public boolean supportsRowValueConstructorSyntaxInInSubQuery() {
+		return supportsRowValueConstructorSyntaxInInList();
 	}
 
 }

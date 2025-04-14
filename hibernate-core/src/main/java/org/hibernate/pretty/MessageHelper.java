@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.pretty;
@@ -87,17 +87,15 @@ public final class MessageHelper {
 			info.append( " with null id" );
 		}
 		else {
-			info.append( " with id '" ).append( id ).append( "'" );
+			info.append( " with id '" );
 			if ( idType == null ) {
 				info.append( id );
 			}
+			else if ( factory != null ) {
+				info.append( idType.toLoggableString( id, factory ) );
+			}
 			else {
-				if ( factory != null ) {
-					info.append( idType.toLoggableString( id, factory ) );
-				}
-				else {
-					info.append( "<not loggable>" );
-				}
+				info.append( "<not loggable>" );
 			}
 			info.append( "'" );
 		}

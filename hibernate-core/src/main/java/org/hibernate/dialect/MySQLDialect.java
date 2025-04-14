@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect;
@@ -17,7 +17,7 @@ import java.util.TimeZone;
 
 import org.hibernate.Length;
 import org.hibernate.LockOptions;
-import org.hibernate.PessimisticLockException;
+import org.hibernate.QueryTimeoutException;
 import org.hibernate.boot.model.FunctionContributions;
 import org.hibernate.boot.model.TypeContributions;
 import org.hibernate.cfg.AvailableSettings;
@@ -42,6 +42,7 @@ import org.hibernate.engine.jdbc.env.spi.IdentifierHelperBuilder;
 import org.hibernate.engine.jdbc.env.spi.NameQualifierSupport;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.hibernate.exception.LockAcquisitionException;
 import org.hibernate.exception.LockTimeoutException;
 import org.hibernate.exception.spi.SQLExceptionConversionDelegate;
@@ -970,15 +971,12 @@ public class MySQLDialect extends Dialect {
 	}
 
 	private static final ViolatedConstraintNameExtractor EXTRACTOR =
-			new TemplatedViolatedConstraintNameExtractor( sqle -> {
-				final String sqlState = extractSqlState( sqle );
-				if ( sqlState != null ) {
-					return switch ( parseInt( sqlState ) ) {
-						case 23000 -> extractUsingTemplate( " for key '", "'", sqle.getMessage() );
-						default -> null;
-					};
-				}
-				return null;
+			new TemplatedViolatedConstraintNameExtractor( sqle -> switch ( sqle.getErrorCode() ) {
+				case 1062 -> extractUsingTemplate( " for key '", "'", sqle.getMessage() );
+				case 1451, 1452 -> extractUsingTemplate( " CONSTRAINT `", "`", sqle.getMessage() );
+				case 3819-> extractUsingTemplate( " constraint '", "'", sqle.getMessage() );
+				case 1048 -> extractUsingTemplate( "Column '", "'", sqle.getMessage() );
+				default -> null;
 			} );
 
 	@Override
@@ -1245,21 +1243,31 @@ public class MySQLDialect extends Dialect {
 	public SQLExceptionConversionDelegate buildSQLExceptionConversionDelegate() {
 		return (sqlException, message, sql) -> {
 			switch ( sqlException.getErrorCode() ) {
-				case 1205:
-				case 3572:
-					return new PessimisticLockException( message, sqlException, sql );
-				case 1207:
-				case 1206:
+				case 1205: // ER_LOCK_WAIT_TIMEOUT
+					return new LockTimeoutException( message, sqlException, sql );
+				case 3572: // ER_LOCK_NOWAIT
+				case 1207: // ER_READ_ONLY_TRANSACTION
+				case 1206: // ER_LOCK_TABLE_FULL
 					return new LockAcquisitionException( message, sqlException, sql );
+				case 3024: // ER_QUERY_TIMEOUT
+				case 1317: // ER_QUERY_INTERRUPTED
+					return new QueryTimeoutException( message, sqlException, sql );
 				case 1062:
 					// Unique constraint violation
-					return new ConstraintViolationException(
-							message,
-							sqlException,
-							sql,
-							ConstraintViolationException.ConstraintKind.UNIQUE,
-							getViolatedConstraintNameExtractor().extractConstraintName( sqlException )
-					);
+					return new ConstraintViolationException( message, sqlException, sql, ConstraintKind.UNIQUE,
+							getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 1048:
+					// Null constraint violation
+					return new ConstraintViolationException( message, sqlException, sql, ConstraintKind.NOT_NULL,
+							getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 1451, 1452:
+					// Foreign key constraint violation
+					return new ConstraintViolationException( message, sqlException, sql, ConstraintKind.FOREIGN_KEY,
+							getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 3819:
+					// Check constraint violation
+					return new ConstraintViolationException( message, sqlException, sql, ConstraintKind.CHECK,
+							getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
 			}
 
 			final String sqlState = extractSqlState( sqlException );
@@ -1596,4 +1604,31 @@ public class MySQLDialect extends Dialect {
 	public String getDual() {
 		return "dual";
 	}
+
+	@Override
+	public boolean supportsDistinctFromPredicate() {
+		// It supports a proprietary operator
+		return true;
+	}
+
+	@Override
+	public boolean supportsIntersect() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsJoinsInDelete() {
+		return true;
+	}
+
+	@Override
+	public boolean supportsNestedSubqueryCorrelation() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntaxInQuantifiedPredicates() {
+		return false;
+	}
+
 }

@@ -1,9 +1,10 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.engine.jdbc.internal;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -76,13 +77,19 @@ class StatementPreparerImpl implements StatementPreparer {
 
 	@Override
 	public PreparedStatement prepareStatement(String sql) {
-		return buildPreparedStatementPreparationTemplate( sql, false ).prepareStatement();
+		return prepareStatement( sql, false );
 	}
 
 	@Override
 	public PreparedStatement prepareStatement(String sql, final boolean isCallable) {
 		jdbcCoordinator.executeBatch();
 		return buildPreparedStatementPreparationTemplate( sql, isCallable ).prepareStatement();
+	}
+
+	@Override
+	public CallableStatement prepareCallableStatement(String sql) {
+		jdbcCoordinator.executeBatch();
+		return (CallableStatement) prepareStatement( sql, true );
 	}
 
 	private StatementPreparationTemplate buildPreparedStatementPreparationTemplate(String sql, final boolean isCallable) {
@@ -132,8 +139,8 @@ class StatementPreparerImpl implements StatementPreparer {
 			boolean isCallable,
 			@Nullable ScrollMode scrollMode) {
 		final int resultSetType;
-		if ( scrollMode != null && !scrollMode.equals( ScrollMode.FORWARD_ONLY ) ) {
-			if ( ! settings().isScrollableResultSetsEnabled() ) {
+		if ( scrollMode != null && scrollMode != ScrollMode.FORWARD_ONLY ) {
+			if ( !settings().isScrollableResultSetsEnabled() ) {
 				throw new AssertionFailure("scrollable result sets are not enabled");
 			}
 			resultSetType = scrollMode.toResultSetType();

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.cfg;
@@ -27,13 +27,12 @@ import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataBuilder;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.SessionFactoryBuilder;
+import org.hibernate.boot.model.convert.internal.ConverterDescriptors;
 import org.hibernate.boot.spi.ClassmateContext;
 import org.hibernate.boot.jaxb.spi.Binding;
 import org.hibernate.boot.model.FunctionContributor;
 import org.hibernate.boot.model.NamedEntityGraphDefinition;
 import org.hibernate.boot.model.TypeContributor;
-import org.hibernate.boot.model.convert.internal.ClassBasedConverterDescriptor;
-import org.hibernate.boot.model.convert.internal.InstanceBasedConverterDescriptor;
 import org.hibernate.boot.model.convert.spi.ConverterDescriptor;
 import org.hibernate.boot.model.naming.ImplicitNamingStrategy;
 import org.hibernate.boot.model.naming.PhysicalNamingStrategy;
@@ -77,8 +76,11 @@ import jakarta.persistence.SharedCacheMode;
  *     annotated classes}, or {@linkplain #addFile XML mapping documents}.
  * </ul>
  * <p>
- * Note that XML mappings may be expressed using the JPA {@code orm.xml}
- * format, or in Hibernate's legacy {@code .hbm.xml} format.
+ * Note that XML mappings may be expressed using either:
+ * <ul>
+ * <li>the JPA-standard {@code orm.xml} format, or
+ * <li>the legacy {@code .hbm.xml} format, which is considered deprecated.
+ * </ul>
  * <p>
  * Configuration properties are enumerated by {@link AvailableSettings}.
  * <p>
@@ -162,7 +164,7 @@ public class Configuration {
 
 	private Map<String, SqmFunctionDescriptor> customFunctionDescriptors;
 	private List<AuxiliaryDatabaseObject> auxiliaryDatabaseObjectList;
-	private HashMap<Class<?>, ConverterDescriptor> attributeConverterDescriptorsByClass;
+	private HashMap<Class<?>, ConverterDescriptor<?,?>> attributeConverterDescriptorsByClass;
 	private List<EntityNameResolver> entityNameResolvers = new ArrayList<>();
 
 	// used to build SF
@@ -262,8 +264,7 @@ public class Configuration {
 	 * @return The value currently associated with that property name; may be null.
 	 */
 	public String getProperty(String propertyName) {
-		Object o = properties.get( propertyName );
-		return o instanceof String ? (String) o : null;
+		return properties.get( propertyName ) instanceof String property ? property : null;
 	}
 
 	/**
@@ -758,11 +759,6 @@ public class Configuration {
 		if ( entityClass == null ) {
 			throw new IllegalArgumentException( "The specified class cannot be null" );
 		}
-
-		if ( log.isDebugEnabled() ) {
-			log.debugf( "adding resource mappings from class convention : %s", entityClass.getName() );
-		}
-
 		return addResource( entityClass.getName().replace( '.', '/' ) + ".hbm.xml" );
 	}
 
@@ -1055,7 +1051,8 @@ public class Configuration {
 		}
 
 		if ( attributeConverterDescriptorsByClass != null ) {
-			attributeConverterDescriptorsByClass.values().forEach( metadataBuilder::applyAttributeConverter );
+			attributeConverterDescriptorsByClass.values()
+					.forEach( metadataBuilder::applyAttributeConverter );
 		}
 
 		final Metadata metadata = metadataBuilder.build();
@@ -1161,7 +1158,7 @@ public class Configuration {
 	 * @return {@code this} for method chaining
 	 */
 	public Configuration addAttributeConverter(Class<? extends AttributeConverter<?,?>> attributeConverterClass, boolean autoApply) {
-		addAttributeConverter( new ClassBasedConverterDescriptor( attributeConverterClass, autoApply, classmateContext ) );
+		addAttributeConverter( ConverterDescriptors.of( attributeConverterClass, autoApply, false, classmateContext ) );
 		return this;
 	}
 
@@ -1172,8 +1169,8 @@ public class Configuration {
 	 *
 	 * @return {@code this} for method chaining
 	 */
-	public Configuration addAttributeConverter(Class<? extends AttributeConverter<?,?>> attributeConverterClass) {
-		addAttributeConverter( new ClassBasedConverterDescriptor( attributeConverterClass, classmateContext ) );
+	public Configuration addAttributeConverter(Class<? extends AttributeConverter<?, ?>> attributeConverterClass) {
+		addAttributeConverter( ConverterDescriptors.of( attributeConverterClass, classmateContext ) );
 		return this;
 	}
 
@@ -1187,7 +1184,7 @@ public class Configuration {
 	 * @return {@code this} for method chaining
 	 */
 	public Configuration addAttributeConverter(AttributeConverter<?,?> attributeConverter) {
-		addAttributeConverter( new InstanceBasedConverterDescriptor( attributeConverter, classmateContext ) );
+		addAttributeConverter( ConverterDescriptors.of( attributeConverter, classmateContext ) );
 		return this;
 	}
 
@@ -1204,7 +1201,7 @@ public class Configuration {
 	 * @return {@code this} for method chaining
 	 */
 	public Configuration addAttributeConverter(AttributeConverter<?,?> attributeConverter, boolean autoApply) {
-		addAttributeConverter( new InstanceBasedConverterDescriptor( attributeConverter, autoApply, classmateContext ) );
+		addAttributeConverter( ConverterDescriptors.of( attributeConverter, autoApply, classmateContext ) );
 		return this;
 	}
 
@@ -1215,7 +1212,7 @@ public class Configuration {
 	 *
 	 * @return {@code this} for method chaining
 	 */
-	public Configuration addAttributeConverter(ConverterDescriptor converterDescriptor) {
+	public Configuration addAttributeConverter(ConverterDescriptor<?,?> converterDescriptor) {
 		if ( attributeConverterDescriptorsByClass == null ) {
 			attributeConverterDescriptorsByClass = new HashMap<>();
 		}

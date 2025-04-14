@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.cache.internal;
@@ -175,7 +175,7 @@ public class QueryResultsCacheImpl implements QueryResultsCache {
 		return "QueryResultsCache(" + cacheRegion.getName() + ')';
 	}
 
-	public static class CacheItem implements Serializable {
+	static class CacheItem implements Serializable {
 		private final Long timestamp;
 		private final List<?> results;
 

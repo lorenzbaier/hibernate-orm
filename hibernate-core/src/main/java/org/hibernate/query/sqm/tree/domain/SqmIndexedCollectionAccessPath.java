@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -26,7 +26,8 @@ public class SqmIndexedCollectionAccessPath<T> extends AbstractSqmPath<T> implem
 		//noinspection unchecked
 		super(
 				navigablePath,
-				( (PluralPersistentAttribute<?, ?, T>) pluralDomainPath.getReferencedPathSource() ).getElementPathSource(),
+				( (SqmPluralPersistentAttribute<?, ?, T>) pluralDomainPath.getReferencedPathSource() )
+						.getElementPathSource(),
 				pluralDomainPath,
 				pluralDomainPath.nodeBuilder()
 		);
@@ -83,7 +84,7 @@ public class SqmIndexedCollectionAccessPath<T> extends AbstractSqmPath<T> implem
 
 	@Override
 	public <S extends T> SqmTreatedPath<T, S> treatAs(EntityDomainType<S> treatTarget) throws PathException {
-		if ( getReferencedPathSource().getSqmPathType() instanceof EntityDomainType ) {
+		if ( getReferencedPathSource().getPathType() instanceof EntityDomainType ) {
 			return getTreatedPath( treatTarget );
 		}
 

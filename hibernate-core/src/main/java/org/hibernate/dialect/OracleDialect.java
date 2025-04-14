@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect;
@@ -39,6 +39,7 @@ import org.hibernate.engine.jdbc.env.spi.IdentifierHelper;
 import org.hibernate.engine.jdbc.env.spi.IdentifierHelperBuilder;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.hibernate.exception.LockAcquisitionException;
 import org.hibernate.exception.LockTimeoutException;
 import org.hibernate.exception.spi.SQLExceptionConversionDelegate;
@@ -1118,7 +1119,9 @@ public class OracleDialect extends Dialect {
 
 	@Override
 	public String getSelectGUIDString() {
-		return getVersion().isSameOrAfter( 23 ) ? "select rawtohex(sys_guid())" : "select rawtohex(sys_guid()) from dual";
+		return getVersion().isSameOrAfter( 23 )
+				? "select rawtohex(sys_guid())"
+				: "select rawtohex(sys_guid()) from dual";
 	}
 
 	@Override
@@ -1129,8 +1132,12 @@ public class OracleDialect extends Dialect {
 	private static final ViolatedConstraintNameExtractor EXTRACTOR =
 			new TemplatedViolatedConstraintNameExtractor( sqle ->
 					switch ( extractErrorCode( sqle ) ) {
-						case 1, 2291, 2292 -> extractUsingTemplate( "(", ")", sqle.getMessage() );
-						case 1400 -> null; // simple nullability constraint
+						case 1, 2291, 2292, 2290 ->
+								extractUsingTemplate( "(", ")", sqle.getMessage() );
+						case 1400, 1407 ->
+								extractUsingTemplate( "(", ")",
+										// Oracle quotes the column in this message, which is ugly
+										sqle.getMessage().replace( "\"", "" ) );
 						default -> null;
 					});
 
@@ -1166,16 +1173,20 @@ public class OracleDialect extends Dialect {
 				// data integrity violation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 				case 1 ->
 					// ORA-00001: unique constraint violated
-						new ConstraintViolationException(
-								message,
-								sqlException,
-								sql,
-								ConstraintViolationException.ConstraintKind.UNIQUE,
-								getViolatedConstraintNameExtractor().extractConstraintName( sqlException )
-						);
-				case 1407 ->
+						new ConstraintViolationException( message, sqlException, sql, ConstraintKind.UNIQUE,
+								getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 1400, 1407 ->
+					// ORA-01400: cannot insert NULL into column
 					// ORA-01407: cannot update column to NULL
-						new ConstraintViolationException( message, sqlException, sql,
+						new ConstraintViolationException( message, sqlException, sql, ConstraintKind.NOT_NULL,
+								getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 2291, 2292 ->
+					// ORA-02291, ORA-02292: integrity constraint violated
+						new ConstraintViolationException( message, sqlException, sql, ConstraintKind.FOREIGN_KEY,
+								getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
+				case 2290 ->
+					//ORA-02290 check constraint violated
+						new ConstraintViolationException( message, sqlException, sql, ConstraintKind.CHECK,
 								getViolatedConstraintNameExtractor().extractConstraintName( sqlException ) );
 				default -> null;
 			};
@@ -1738,6 +1749,48 @@ public class OracleDialect extends Dialect {
 	@Override
 	public String getFromDualForSelectOnly() {
 		return getVersion().isSameOrAfter( 23 ) ? "" : ( " from " + getDual() );
+	}
+
+	@Override
+	public boolean supportsDuplicateSelectItemsInQueryGroup() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsNestedSubqueryCorrelation() {
+		// It seems it doesn't support it, at least on version 11
+		return false;
+	}
+
+	@Override
+	public boolean supportsRecursiveCycleClause() {
+		return true;
+	}
+
+	@Override
+	public boolean supportsRecursiveSearchClause() {
+		return true;
+	}
+
+	@Override
+	public boolean supportsSimpleQueryGrouping() {
+		return supportsFetchClause( FetchClauseType.ROWS_ONLY );
+	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntax() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsWithClauseInSubquery() {
+		// Oracle has some limitations, see ORA-32034, so we just report false here for simplicity
+		return false;
+	}
+
+	@Override
+	public boolean supportsRowValueConstructorSyntaxInQuantifiedPredicates() {
+		return false;
 	}
 
 }

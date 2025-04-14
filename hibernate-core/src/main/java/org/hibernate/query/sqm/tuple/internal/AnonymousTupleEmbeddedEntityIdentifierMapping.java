@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tuple.internal;
@@ -35,7 +35,7 @@ public class AnonymousTupleEmbeddedEntityIdentifierMapping extends AnonymousTupl
 			int selectionIndex,
 			String selectionExpression,
 			Set<String> compatibleTableExpressions,
-			Set<Attribute<?, ?>> attributes,
+			Set<? extends Attribute<?, ?>> attributes,
 			DomainType<?> domainType,
 			CompositeIdentifierMapping delegate) {
 		super(

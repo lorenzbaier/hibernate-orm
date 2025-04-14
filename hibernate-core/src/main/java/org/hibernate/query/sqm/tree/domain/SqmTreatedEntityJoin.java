@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -15,11 +15,11 @@ import org.hibernate.spi.NavigablePath;
  */
 public class SqmTreatedEntityJoin<L,R,S extends R> extends SqmEntityJoin<L,S> implements SqmTreatedJoin<L,R,S> {
 	private final SqmEntityJoin<L,R> wrappedPath;
-	private final EntityDomainType<S> treatTarget;
+	private final SqmEntityDomainType<S> treatTarget;
 
 	public SqmTreatedEntityJoin(
 			SqmEntityJoin<L,R> wrappedPath,
-			EntityDomainType<S> treatTarget,
+			SqmEntityDomainType<S> treatTarget,
 			String alias) {
 		super(
 				wrappedPath.getNavigablePath().treatAs(
@@ -38,7 +38,7 @@ public class SqmTreatedEntityJoin<L,R,S extends R> extends SqmEntityJoin<L,S> im
 	private SqmTreatedEntityJoin(
 			NavigablePath navigablePath,
 			SqmEntityJoin<L,R> wrappedPath,
-			EntityDomainType<S> treatTarget,
+			SqmEntityDomainType<S> treatTarget,
 			String alias) {
 		super(
 				navigablePath,
@@ -76,8 +76,8 @@ public class SqmTreatedEntityJoin<L,R,S extends R> extends SqmEntityJoin<L,S> im
 	}
 
 	@Override
-	public EntityDomainType<S> getModel() {
-		return getTreatTarget();
+	public SqmEntityDomainType<S> getModel() {
+		return treatTarget;
 	}
 
 	@Override
@@ -91,7 +91,7 @@ public class SqmTreatedEntityJoin<L,R,S extends R> extends SqmEntityJoin<L,S> im
 	}
 
 	@Override
-	public EntityDomainType<S> getReferencedPathSource() {
+	public SqmEntityDomainType<S> getReferencedPathSource() {
 		return treatTarget;
 	}
 

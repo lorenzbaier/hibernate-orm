@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.mapping;
@@ -55,7 +55,6 @@ import org.hibernate.usertype.CompositeUserType;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
-import static org.hibernate.generator.EventType.INSERT;
 import static org.hibernate.internal.util.StringHelper.qualify;
 import static org.hibernate.mapping.MappingHelper.checkPropertyColumnDuplication;
 import static org.hibernate.mapping.MappingHelper.classForName;
@@ -104,6 +103,7 @@ public class Component extends SimpleValue implements MetaAttributable, Sortable
 	private String[] structColumnNames;
 	private transient Class<?> componentClass;
 	private transient Boolean simpleRecord;
+	private String columnNamingPattern;
 
 	public Component(MetadataBuildingContext metadata, PersistentClass owner) throws MappingException {
 		this( metadata, owner.getTable(), owner );
@@ -735,6 +735,24 @@ public class Component extends SimpleValue implements MetaAttributable, Sortable
 		properties.clear();
 	}
 
+	/**
+	 * Apply a column naming pattern.
+	 *
+	 * @see org.hibernate.annotations.EmbeddedColumnNaming
+	 */
+	public void setColumnNamingPattern(String columnNamingPattern) {
+		this.columnNamingPattern = columnNamingPattern;
+	}
+
+	/**
+	 * Column naming pattern applied to the component
+	 *
+	 * @see org.hibernate.annotations.EmbeddedColumnNaming
+	 */
+	public String getColumnNamingPattern() {
+		return columnNamingPattern;
+	}
+
 	public static class StandardGenerationContextLocator
 			implements CompositeNestedGeneratedValueGenerator.GenerationContextLocator {
 		private final String entityName;
@@ -771,13 +789,8 @@ public class Component extends SimpleValue implements MetaAttributable, Sortable
 		}
 
 		@Override
-		public Object execute(SharedSessionContractImplementor session, Object incomingObject) {
-			if ( generator.generatedBeforeExecution( incomingObject, session ) ) {
-				return generator.generate( session, incomingObject, null, INSERT );
-			}
-			else {
-				throw new IdentifierGenerationException( "Identity generation isn't supported for composite ids" );
-			}
+		public BeforeExecutionGenerator getGenerator() {
+			return generator;
 		}
 
 		@Override

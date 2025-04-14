@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.range;
@@ -198,7 +198,7 @@ public interface Range<U> {
 	 * with case-sensitivity.
 	 */
 	static Range<String> containing(String substring) {
-		return pattern( substring, true );
+		return containing( substring, true );
 	}
 
 	/**

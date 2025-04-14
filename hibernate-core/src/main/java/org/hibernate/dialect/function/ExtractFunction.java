@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.dialect.function;
@@ -85,8 +85,7 @@ public class ExtractFunction extends AbstractSqmFunctionDescriptor implements Fu
 		final boolean compositeTemporal = SqmExpressionHelper.isCompositeTemporal( originalExpression );
 		final SqmExpression<?> expression = SqmExpressionHelper.getOffsetAdjustedExpression( originalExpression );
 
-		TemporalUnit unit = field.getUnit();
-		switch ( unit ) {
+		switch ( field.getUnit() ) {
 			case NANOSECOND:
 				return extractNanoseconds( expression, queryEngine );
 			case NATIVE:

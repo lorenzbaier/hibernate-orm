@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query;
@@ -423,13 +423,6 @@ public interface Query<R> extends SelectionQuery<R>, MutationQuery, TypedQuery<R
 	QueryOptions getQueryOptions();
 
 	/**
-	 * Access to information about query parameters.
-	 *
-	 * @return information about query parameters.
-	 */
-	ParameterMetadata getParameterMetadata();
-
-	/**
 	 * Bind the given argument to a named query parameter.
 	 * <p>
 	 * If the type of the parameter cannot be inferred from the context
@@ -461,18 +454,19 @@ public interface Query<R> extends SelectionQuery<R>, MutationQuery, TypedQuery<R
 	 * Bind an {@link Instant} value to the named query parameter using
 	 * just the portion indicated by the given {@link TemporalType}.
 	 */
+	@Deprecated(since = "7")
 	Query<R> setParameter(String parameter, Instant argument, TemporalType temporalType);
 
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(String parameter, Calendar argument, TemporalType temporalType);
 
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(String parameter, Date argument, TemporalType temporalType);
 
 
@@ -509,18 +503,19 @@ public interface Query<R> extends SelectionQuery<R>, MutationQuery, TypedQuery<R
 	 * Bind an {@link Instant} value to the ordinal query parameter using
 	 * just the portion indicated by the given {@link TemporalType}.
 	 */
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(int parameter, Instant argument, TemporalType temporalType);
 
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(int parameter, Date argument, TemporalType temporalType);
 
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(int parameter, Calendar argument, TemporalType temporalType);
 
 	/**
@@ -576,13 +571,13 @@ public interface Query<R> extends SelectionQuery<R>, MutationQuery, TypedQuery<R
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(Parameter<Calendar> parameter, Calendar argument, TemporalType temporalType);
 
 	/**
 	 * {@link jakarta.persistence.Query} override
 	 */
-	@Override
+	@Override @Deprecated(since = "7")
 	Query<R> setParameter(Parameter<Date> parameter, Date argument, TemporalType temporalType);
 
 
@@ -920,7 +915,7 @@ public interface Query<R> extends SelectionQuery<R>, MutationQuery, TypedQuery<R
 	Query<R> setHint(String hintName, Object value);
 
 	@Override
-	Query<R> setEntityGraph(EntityGraph<R> graph, GraphSemantic semantic);
+	Query<R> setEntityGraph(EntityGraph<? super R> graph, GraphSemantic semantic);
 
 	@Override
 	Query<R> enableFetchProfile(String profileName);

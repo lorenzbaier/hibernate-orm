@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.loader.ast.internal;
@@ -100,8 +100,8 @@ public class MultiNaturalIdLoadingBatcher {
 		int offset = 0;
 		int size = 0;
 
-		for ( int i = 0; i < naturalIdValues.length; i++ ) {
-			final Object bindValue = keyValueResolver.resolveKeyToLoad( naturalIdValues[ i ], session );
+		for ( Object naturalIdValue : naturalIdValues ) {
+			final Object bindValue = keyValueResolver.resolveKeyToLoad( naturalIdValue, session );
 			if ( bindValue != null ) {
 				offset += jdbcParamBindings.registerParametersForEachJdbcValue(
 						bindValue,

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.orm.test.events;
@@ -45,8 +45,8 @@ public class ClearEventListenerTest {
 		LISTENER.callCount = 0;
 
 		scope.inSession(
-				session -> {
-					session.setAutoClear( true );
+				s -> {
+					var session = s.sessionWithOptions().autoClear(true).openSession();
 					session.getTransaction().begin();
 					try {
 						assertThat( LISTENER.callCount ).isEqualTo( 0 );

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.boot;
@@ -146,7 +146,10 @@ public interface MetadataBuilder {
 	 * @param jandexView The Jandex index to use.
 	 *
 	 * @return {@code this}, for method chaining
+	 *
+	 * @deprecated Set the {@code hibernate-models} setting {@code hibernate.models.jandex.index} instead.  This method has no effect.
 	 */
+	@Deprecated
 	MetadataBuilder applyIndexView(Object jandexView);
 
 	/**
@@ -374,7 +377,7 @@ public interface MetadataBuilder {
 	 * @return {@code this} for method chaining
 	 *
 	 */
-	MetadataBuilder applyAttributeConverter(ConverterDescriptor descriptor);
+	MetadataBuilder applyAttributeConverter(ConverterDescriptor<?,?> descriptor);
 
 	/**
 	 * Adds an AttributeConverter by its Class.

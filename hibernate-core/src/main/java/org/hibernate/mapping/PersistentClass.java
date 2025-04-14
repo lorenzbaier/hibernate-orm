@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.mapping;
@@ -220,10 +220,11 @@ public abstract sealed class PersistentClass
 		while ( superclass != null ) {
 			if ( subclass.getEntityName().equals( superclass.getEntityName() ) ) {
 				throw new MappingException(
-						"Circular inheritance mapping detected: " +
-								subclass.getEntityName() +
-								" will have itself as superclass when extending " +
-								getEntityName()
+						"Circular inheritance mapping: '"
+							+ subclass.getEntityName()
+							+ "' will have itself as superclass when extending '"
+							+ getEntityName()
+							+ "'"
 				);
 			}
 			superclass = superclass.getSuperclass();

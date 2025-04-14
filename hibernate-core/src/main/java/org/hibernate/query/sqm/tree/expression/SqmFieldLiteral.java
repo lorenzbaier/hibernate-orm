@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.expression;
@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Locale;
 
 import org.hibernate.QueryException;
-import org.hibernate.metamodel.model.domain.DomainType;
 import org.hibernate.query.criteria.JpaSelection;
 import org.hibernate.query.hql.spi.SemanticPathPart;
 import org.hibernate.query.hql.spi.SqmCreationState;
@@ -22,12 +21,12 @@ import org.hibernate.query.sqm.SqmExpressible;
 import org.hibernate.query.sqm.UnknownPathException;
 import org.hibernate.query.sqm.tree.SqmCopyContext;
 import org.hibernate.query.sqm.tree.domain.SqmPath;
+import org.hibernate.query.sqm.tree.domain.SqmDomainType;
 import org.hibernate.query.sqm.tree.predicate.SqmPredicate;
 import org.hibernate.query.sqm.tree.select.SqmSelectableNode;
 import org.hibernate.type.descriptor.java.JavaType;
 
 import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Predicate;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -147,6 +146,7 @@ public class SqmFieldLiteral<T> implements SqmExpression<T>, SqmExpressible<T>, 
 	public NodeBuilder nodeBuilder() {
 		return nodeBuilder;
 	}
+
 	@Override
 	public SqmPredicate isNull() {
 		return nodeBuilder().isNull( this );
@@ -163,12 +163,12 @@ public class SqmFieldLiteral<T> implements SqmExpression<T>, SqmExpressible<T>, 
 	}
 
 	@Override
-	public Predicate notEqualTo(Expression<?> that) {
+	public SqmPredicate notEqualTo(Expression<?> that) {
 		return nodeBuilder().notEqual( this, that );
 	}
 
 	@Override
-	public Predicate notEqualTo(Object that) {
+	public SqmPredicate notEqualTo(Object that) {
 		return nodeBuilder().notEqual( this, that );
 	}
 
@@ -280,7 +280,6 @@ public class SqmFieldLiteral<T> implements SqmExpression<T>, SqmExpressible<T>, 
 		);
 	}
 
-
 	@Override
 	public boolean isCompoundSelection() {
 		return false;
@@ -303,7 +302,7 @@ public class SqmFieldLiteral<T> implements SqmExpression<T>, SqmExpressible<T>, 
 	}
 
 	@Override
-	public DomainType<T> getSqmType() {
+	public SqmDomainType<T> getSqmType() {
 		return null;
 	}
 

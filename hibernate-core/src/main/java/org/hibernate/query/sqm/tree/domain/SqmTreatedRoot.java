@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -18,12 +18,12 @@ import org.hibernate.spi.NavigablePath;
 @SuppressWarnings("rawtypes")
 public class SqmTreatedRoot extends SqmRoot implements SqmTreatedFrom {
 	private final SqmRoot wrappedPath;
-	private final EntityDomainType treatTarget;
+	private final SqmEntityDomainType treatTarget;
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public SqmTreatedRoot(
 			SqmRoot wrappedPath,
-			EntityDomainType treatTarget) {
+			SqmEntityDomainType treatTarget) {
 		super(
 				wrappedPath.getNavigablePath().treatAs(
 						treatTarget.getHibernateEntityName()
@@ -40,7 +40,7 @@ public class SqmTreatedRoot extends SqmRoot implements SqmTreatedFrom {
 	private SqmTreatedRoot(
 			NavigablePath navigablePath,
 			SqmRoot wrappedPath,
-			EntityDomainType treatTarget) {
+			SqmEntityDomainType treatTarget) {
 		super(
 				navigablePath,
 				(EntityDomainType) wrappedPath.getReferencedPathSource(),
@@ -90,8 +90,8 @@ public class SqmTreatedRoot extends SqmRoot implements SqmTreatedFrom {
 	}
 
 	@Override
-	public EntityDomainType getReferencedPathSource() {
-		return getTreatTarget();
+	public SqmEntityDomainType getReferencedPathSource() {
+		return treatTarget;
 	}
 
 	@Override

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.orm.test.jpa.query;
@@ -87,7 +87,7 @@ public class TypedValueParametersTest {
 						TagUserType.INSTANCE,
 						scope.getEntityManagerFactory().unwrap( SessionFactoryImplementor.class ).getTypeConfiguration()
 				);
-				q.setParameter("tags", new TypedParameterValue<>( customType, Arrays.asList("important","business")));
+				q.setParameter("tags", TypedParameterValue.of(customType, Arrays.asList("important","business")));
 			}
 		);
 	}

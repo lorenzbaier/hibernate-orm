@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.graph.internal;
@@ -352,7 +352,7 @@ public abstract sealed class AttributeNodeImpl<J, E, K>
 		}
 		else {
 			final HashMap<Class<?>, SubGraphImplementor<?>> map = new HashMap<>( valueSubgraph.getTreatedSubgraphs() );
-			map.put( attribute.getValueGraphType().getBindableJavaType(), valueSubgraph );
+			map.put( attribute.getValueGraphType().getJavaType(), valueSubgraph );
 			return map;
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.results.internal.complete;
@@ -46,12 +46,14 @@ public class CompleteResultBuilderBasicValuedConverted<O,R> implements CompleteR
 			BasicValuedMapping underlyingMapping) {
 		this.explicitColumnName = explicitColumnName;
 		this.underlyingMapping = underlyingMapping;
-		//noinspection unchecked,rawtypes
+		@SuppressWarnings("unchecked")
+		final JavaType<R> relationalType =
+				underlyingMapping.getJdbcMapping().getJavaTypeDescriptor();
 		this.valueConverter = new JpaAttributeConverterImpl<>(
 				converterBean,
 				converterJtd,
 				domainJavaType,
-				underlyingMapping.getJdbcMapping().getJavaTypeDescriptor()
+				relationalType
 		);
 	}
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.domain;
@@ -39,7 +39,7 @@ public class SqmFkExpression<T> extends AbstractSqmPath<T> {
 	}
 
 	private static IdentifiableDomainType<?> pathDomainType(SqmPath<?> toOnePath) {
-		final DomainType<?> domainType = toOnePath.getReferencedPathSource().getSqmPathType();
+		final DomainType<?> domainType = toOnePath.getReferencedPathSource().getPathType();
 		if ( domainType instanceof IdentifiableDomainType<?> identifiableDomainType ) {
 			return identifiableDomainType;
 		}

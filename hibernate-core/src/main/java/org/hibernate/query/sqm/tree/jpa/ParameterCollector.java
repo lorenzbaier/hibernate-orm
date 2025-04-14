@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright Red Hat Inc. and Hibernate Authors
  */
 package org.hibernate.query.sqm.tree.jpa;
@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 
 import org.hibernate.query.BindableType;
 import org.hibernate.query.sqm.SqmExpressible;
+import org.hibernate.query.sqm.SqmPathSource;
 import org.hibernate.query.sqm.spi.BaseSemanticQueryWalker;
 import org.hibernate.query.sqm.tree.SqmExpressibleAccessor;
 import org.hibernate.query.sqm.tree.SqmStatement;
@@ -148,7 +149,7 @@ public class ParameterCollector extends BaseSemanticQueryWalker {
 	private SqmExpressibleAccessor<?> inferenceBasis;
 
 	private <T> void withTypeInference(SqmExpressibleAccessor<T> inferenceBasis, SqmVisitableNode sqmVisitableNode) {
-		SqmExpressibleAccessor<?> original = this.inferenceBasis;
+		var original = this.inferenceBasis;
 		this.inferenceBasis = inferenceBasis;
 		try {
 			sqmVisitableNode.accept( this );
@@ -160,21 +161,23 @@ public class ParameterCollector extends BaseSemanticQueryWalker {
 
 	@Override
 	public Object visitSimpleCaseExpression(SqmCaseSimple<?, ?> expression) {
-		final SqmExpressibleAccessor<?> inferenceSupplier = this.inferenceBasis;
+		final var inferenceSupplier = inferenceBasis;
 		withTypeInference(
 				() -> {
-					for ( SqmCaseSimple.WhenFragment<?, ?> whenFragment : expression.getWhenFragments() ) {
+					for ( var whenFragment : expression.getWhenFragments() ) {
 						final SqmExpressible<?> resolved = whenFragment.getCheckValue().getExpressible();
 						if ( resolved != null ) {
-							return (SqmExpressible<?>) resolved;
+							return resolved;
 						}
 					}
 					return null;
 				},
 				expression.getFixture()
 		);
-		SqmExpressibleAccessor<?> resolved = toExpressibleAccessor( expression );
-		for ( SqmCaseSimple.WhenFragment<?, ?> whenFragment : expression.getWhenFragments() ) {
+
+		var resolved = toExpressibleAccessor( expression );
+
+		for ( var whenFragment : expression.getWhenFragments() ) {
 			withTypeInference(
 					expression.getFixture(),
 					whenFragment.getCheckValue()
@@ -198,10 +201,10 @@ public class ParameterCollector extends BaseSemanticQueryWalker {
 
 	@Override
 	public Object visitSearchedCaseExpression(SqmCaseSearched<?> expression) {
-		final SqmExpressibleAccessor<?> inferenceSupplier = this.inferenceBasis;
-		SqmExpressibleAccessor<?> resolved = toExpressibleAccessor( expression );
+		final var inferenceSupplier = inferenceBasis;
+		var resolved = toExpressibleAccessor( expression );
 
-		for ( SqmCaseSearched.WhenFragment<?> whenFragment : expression.getWhenFragments() ) {
+		for ( var whenFragment : expression.getWhenFragments() ) {
 			withTypeInference(
 					null,
 					whenFragment.getPredicate()
@@ -256,7 +259,8 @@ public class ParameterCollector extends BaseSemanticQueryWalker {
 	@Override
 	public Object visitIndexedPluralAccessPath(SqmIndexedCollectionAccessPath<?> path) {
 		path.getLhs().accept( this );
-		withTypeInference( path.getPluralAttribute().getIndexPathSource(), path.getSelectorExpression() );
+		withTypeInference( (SqmPathSource<?>) path.getPluralAttribute().getIndexPathSource(),
+				path.getSelectorExpression() );
 		return path;
 	}
 
@@ -321,9 +325,9 @@ public class ParameterCollector extends BaseSemanticQueryWalker {
 
 	@Override
 	public Object visitInListPredicate(SqmInListPredicate<?> predicate) {
-		final SqmExpression<?> firstListElement = predicate.getListExpressions().isEmpty()
-				? null
-				: predicate.getListExpressions().get( 0 );
+		final SqmExpression<?> firstListElement =
+				predicate.getListExpressions().isEmpty() ? null
+						: predicate.getListExpressions().get( 0 );
 		withTypeInference( firstListElement, predicate.getTestExpression() );
 		for ( SqmExpression<?> expression : predicate.getListExpressions() ) {
 			withTypeInference( predicate.getTestExpression(), expression );
